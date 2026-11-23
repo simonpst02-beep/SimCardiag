@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,3 +30,14 @@ jobs:
         with:
           name: simcardiag-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Publier la dernière version (APK téléchargeable)
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk SimCarDiag.apk
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest SimCarDiag.apk --prerelease \
+            --title "SimCarDiag (dernière version)" \
+            --notes "APK compilé automatiquement depuis la branche main. Ouvrez ce fichier sur le téléphone pour l'installer."
