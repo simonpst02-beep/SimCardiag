@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -19,7 +21,7 @@ android {
     // Signature de la version publiable : créez keystore.properties à la racine du projet (voir README)
     val ks = rootProject.file("keystore.properties")
     if (ks.exists()) {
-        val props = java.util.Properties().apply { ks.inputStream().use { load(it) } }
+        val props = Properties().apply { ks.inputStream().use { load(it) } }
         signingConfigs {
             create("release") {
                 storeFile = rootProject.file(props.getProperty("storeFile"))
