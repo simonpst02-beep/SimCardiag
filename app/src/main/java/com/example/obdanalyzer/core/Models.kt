@@ -12,7 +12,10 @@ enum class Orientation(val label: String) { AUTO("Automatique"), PORTRAIT("Portr
 enum class PollRate(val label: String, val delayMs: Long) { ECO("Économie de batterie", 250), NORMAL("Normale", 60), FAST("Rapide", 0) }
 enum class ConsUnit(val label: String) { L100("L/100 km"), KML("km/L") }
 enum class TempUnit(val label: String) { C("°C"), F("°F") }
-enum class Wallpaper(val label: String) { NONE("Uni"), CARBON("Fibre de carbone"), STRIPES("Bandes de course"), NIGHT_ROAD("Route de nuit") }
+enum class Wallpaper(val label: String) {
+    NONE("Uni"), CARBON("Fibre de carbone"), STRIPES("Bandes de course"), NIGHT_ROAD("Route de nuit"),
+    TACHO("Compte-tours"), CHECKERED("Damier"), CIRCUIT("Circuit"), SYNTHWAVE("Rétro synthwave"), HONEYCOMB("Calandre")
+}
 enum class Accent(val label: String, val argb: Long) {
     BLUE("Bleu", 0xFF8AB4FF), RED("Rouge course", 0xFFFF5A5F), ORANGE("Orange", 0xFFFF9F43), GREEN("Vert", 0xFF4CD787), YELLOW("Jaune", 0xFFFFD23F)
 }

@@ -27,6 +27,7 @@ import com.example.obdanalyzer.core.PollRate
 import com.example.obdanalyzer.core.ConsUnit
 import com.example.obdanalyzer.core.TempUnit
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -439,10 +440,10 @@ private fun <T> ChipRow(items: List<Pair<T, String>>, selected: T, onSelect: (T)
 private fun AppearanceCard(s: Settings) {
     SectionCard(Icons.Rounded.Palette, MaterialTheme.colorScheme.primary, "Apparence") {
         Text("Fond d'écran", fontWeight = FontWeight.SemiBold)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Wallpaper.entries.forEach { w ->
                 val sel = s.wallpaper == w
-                Column(Modifier.weight(1f).clickable { ObdManager.updateSettings { it.copy(wallpaper = w) } },
+                Column(Modifier.width(76.dp).clickable { ObdManager.updateSettings { it.copy(wallpaper = w) } },
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Box(Modifier.fillMaxWidth().aspectRatio(0.62f).clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.background)

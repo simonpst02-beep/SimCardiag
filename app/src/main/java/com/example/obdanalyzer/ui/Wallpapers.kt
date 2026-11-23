@@ -11,6 +11,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.sqrt
 import androidx.compose.ui.graphics.luminance
 import com.example.obdanalyzer.core.Wallpaper
 
@@ -85,6 +91,93 @@ fun WallpaperLayer(w: Wallpaper, modifier: Modifier = Modifier.fillMaxSize()) {
                     drawLine(ink.copy(alpha = 0.04f), Offset(size.width * (0.1f + i * 0.07f), y), Offset(size.width * (0.45f + i * 0.08f), y), 1.5f)
                 }
                 drawCircle(accent.copy(alpha = 0.12f), size.minDimension * 0.5f, Offset(cx, hz), style = Stroke(1.5f))
+            }
+            Wallpaper.TACHO -> {
+                // Grand compte-tours : graduations, zone rouge et aiguille
+                val c = Offset(size.width * 0.5f, size.height * 0.58f)
+                val r = size.minDimension * 0.62f
+                drawArc(ink.copy(alpha = 0.10f), 150f, 240f, false, Offset(c.x - r, c.y - r), Size(2 * r, 2 * r), style = Stroke(r * 0.05f))
+                drawArc(Color(0xFFFF5A5F).copy(alpha = 0.22f), 342f, 48f, false, Offset(c.x - r, c.y - r), Size(2 * r, 2 * r), style = Stroke(r * 0.05f))
+                for (i in 0..24) {
+                    val a = Math.toRadians(150.0 + i * 10.0)
+                    val major = i % 3 == 0
+                    val r1 = r * (if (major) 0.82f else 0.88f); val r2 = r * 0.93f
+                    drawLine(ink.copy(alpha = if (major) 0.18f else 0.10f),
+                        Offset(c.x + r1 * cos(a).toFloat(), c.y + r1 * sin(a).toFloat()),
+                        Offset(c.x + r2 * cos(a).toFloat(), c.y + r2 * sin(a).toFloat()), if (major) 4f else 2f)
+                }
+                val na = Math.toRadians(305.0)
+                drawLine(accent.copy(alpha = 0.30f), c, Offset(c.x + r * 0.78f * cos(na).toFloat(), c.y + r * 0.78f * sin(na).toFloat()), r * 0.025f, StrokeCap.Round)
+                drawCircle(accent.copy(alpha = 0.25f), r * 0.05f, c)
+            }
+            Wallpaper.CHECKERED -> {
+                // Bande de drapeau à damier en travers de l'écran
+                val sq = size.minDimension / 14f
+                rotate(-18f, Offset(size.width / 2, size.height * 0.25f)) {
+                    val y0 = size.height * 0.18f
+                    var x = -size.width * 0.5f; var col = 0
+                    while (x < size.width * 1.5f) {
+                        for (row in 0..2) if ((row + col) % 2 == 0) drawRect(ink.copy(alpha = if (dark) 0.11f else 0.10f), Offset(x, y0 + row * sq), Size(sq, sq))
+                        x += sq; col++
+                    }
+                }
+                drawRect(Brush.verticalGradient(listOf(Color.Transparent, accent.copy(alpha = 0.10f))))
+            }
+            Wallpaper.CIRCUIT -> {
+                // Tracé de circuit stylisé avec ligne de départ
+                val w = size.width; val h = size.height
+                val track = Path().apply {
+                    moveTo(w * 0.22f, h * 0.80f)
+                    cubicTo(w * 0.05f, h * 0.70f, w * 0.10f, h * 0.45f, w * 0.30f, h * 0.42f)
+                    cubicTo(w * 0.50f, h * 0.40f, w * 0.40f, h * 0.20f, w * 0.60f, h * 0.15f)
+                    cubicTo(w * 0.85f, h * 0.10f, w * 0.95f, h * 0.30f, w * 0.80f, h * 0.45f)
+                    cubicTo(w * 0.68f, h * 0.56f, w * 0.88f, h * 0.68f, w * 0.80f, h * 0.82f)
+                    cubicTo(w * 0.72f, h * 0.95f, w * 0.40f, h * 0.92f, w * 0.22f, h * 0.80f)
+                    close()
+                }
+                drawPath(track, ink.copy(alpha = if (dark) 0.06f else 0.05f), style = Stroke(size.minDimension * 0.06f, cap = StrokeCap.Round))
+                drawPath(track, accent.copy(alpha = 0.25f), style = Stroke(2.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(18f, 14f))))
+                val sx = w * 0.50f; val sy = h * 0.918f; val q = size.minDimension * 0.012f
+                for (i in -2..1) for (j in 0..1) if ((i + j) % 2 == 0) drawRect(ink.copy(alpha = 0.15f), Offset(sx + i * q, sy - q + j * q), Size(q, q))
+            }
+            Wallpaper.SYNTHWAVE -> {
+                // Soleil rétro et grille en perspective
+                val hz = size.height * 0.46f
+                val cx = size.width / 2
+                val sr = size.minDimension * 0.30f
+                drawCircle(Brush.verticalGradient(listOf(accent.copy(alpha = 0.30f), Color(0xFFFF5A9E).copy(alpha = 0.18f)), hz - sr, hz), sr, Offset(cx, hz))
+                val bg = if (dark) Color(0xFF101318) else Color(0xFFF6F7FA)
+                var k = 0
+                var y = hz - sr * 0.45f
+                while (y < hz) { drawRect(bg, Offset(cx - sr, y), Size(2 * sr, 3f + k * 1.5f)); y += sr * 0.13f; k++ }
+                drawRect(bg, Offset(0f, hz), Size(size.width, size.height - hz))
+                val line = accent.copy(alpha = 0.22f)
+                drawLine(line, Offset(0f, hz), Offset(size.width, hz), 2f)
+                var t = 0.04f
+                while (t < 1f) { val yy = hz + (size.height - hz) * t * t; drawLine(line, Offset(0f, yy), Offset(size.width, yy), 1.5f); t += 0.09f }
+                for (i in -8..8) drawLine(line, Offset(cx, hz), Offset(cx + i * size.width * 0.18f, size.height), 1.5f)
+            }
+            Wallpaper.HONEYCOMB -> {
+                // Calandre en nid d'abeille
+                val r = size.minDimension / 22f
+                val hw = r * sqrt(3f)
+                val path = Path()
+                var row = 0
+                var cy = 0f
+                while (cy < size.height + r) {
+                    var cx = if (row % 2 == 0) 0f else hw / 2
+                    while (cx < size.width + hw) {
+                        for (i in 0..6) {
+                            val a = Math.toRadians(60.0 * i - 30.0)
+                            val px = cx + r * cos(a).toFloat(); val py = cy + r * sin(a).toFloat()
+                            if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                        }
+                        cx += hw
+                    }
+                    cy += r * 1.5f; row++
+                }
+                drawPath(path, ink.copy(alpha = if (dark) 0.06f else 0.05f), style = Stroke(2f))
+                drawRect(Brush.verticalGradient(listOf(accent.copy(alpha = 0.10f), Color.Transparent, accent.copy(alpha = 0.08f))))
             }
             Wallpaper.NONE -> Unit
         }
