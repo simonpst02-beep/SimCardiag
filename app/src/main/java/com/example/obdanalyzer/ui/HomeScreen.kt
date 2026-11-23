@@ -125,8 +125,8 @@ private fun WidgetCard(
         if (edit) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             SmallIcon(Icons.Rounded.ChevronLeft, "Déplacer avant", i > 0) { onMove(-1) }
             SmallIcon(Icons.Rounded.ChevronRight, "Déplacer après", i < n - 1) { onMove(1) }
-            if (w.kind == "val" || w.kind == "gauge") SmallIcon(Icons.Rounded.SwapHoriz, "Changer la taille", true, onResize)
-            SmallIcon(Icons.Rounded.Close, "Retirer", true, onRemove, LocalObd.current.bad)
+            if (w.kind == "val" || w.kind == "gauge") SmallIcon(Icons.Rounded.SwapHoriz, "Changer la taille", true, onClick = onResize)
+            SmallIcon(Icons.Rounded.Close, "Retirer", true, tint = LocalObd.current.bad, onClick = onRemove)
         }
         WidgetContent(w, l, v, onTab)
     }
@@ -137,8 +137,8 @@ private fun WidgetCard(
 }
 
 @Composable
-private fun SmallIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, enabled: Boolean, onClick: () -> Unit,
-                      tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface) {
+private fun SmallIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, enabled: Boolean,
+                      tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface, onClick: () -> Unit) {
     FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(40.dp).padding(2.dp)) {
         Icon(icon, desc, tint = if (enabled) tint else tint.copy(alpha = 0.3f), modifier = Modifier.size(20.dp))
     }
