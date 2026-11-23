@@ -32,6 +32,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.example.obdanalyzer.core.Vehicle
 import com.example.obdanalyzer.core.status
 import com.example.obdanalyzer.obd.Expr
@@ -66,7 +68,7 @@ fun SettingsScreen(s: Settings, wide: Boolean, onBack: () -> Unit) {
         Box(Modifier.weight(1f)) {
             TwoColumns(wide,
                 left = { AppearanceCard(s); DrivingCard(s); SettingsCard(s) },
-                right = { AlertsCard(s); DriveModeCard(s); DataCard(s); BackupCard(); AboutCard() })
+                right = { UpdatesCard(s); AlertsCard(s); DriveModeCard(s); DataCard(s); BackupCard(); AboutCard() })
         }
     }
 }
@@ -531,5 +533,63 @@ private fun AboutCard() {
         KeyValue("SimCarDiag", "version $version")
         Text("Fonds de carte © contributeurs OpenStreetMap. Les informations affichées viennent des calculateurs via la prise OBD et ne remplacent pas un diagnostic professionnel.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun UpdatesCard(s: Settings) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val u by com.example.obdanalyzer.core.Updater.state.collectAsStateWithLifecycle()
+    var showToken by remember { mutableStateOf(false) }
+    var token by remember(s.githubToken) { mutableStateOf(s.githubToken) }
+    val up = com.example.obdanalyzer.core.Updater
+    SectionCard(Icons.Rounded.SystemUpdate, MaterialTheme.colorScheme.primary, "Mises à jour") {
+        KeyValue("Version installée", "${up.currentName(ctx)} (n° ${up.currentBuild(ctx)})")
+        when {
+            u.checking -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 3.dp); Text("Recherche sur GitHub…")
+            }
+            u.progress != null -> {
+                Text("Téléchargement de ${u.latest?.title}…", fontWeight = FontWeight.SemiBold)
+                LinearProgressIndicator(progress = { u.progress ?: 0f }, Modifier.fillMaxWidth(), trackColor = LocalObd.current.track)
+            }
+            u.available && u.latest != null -> {
+                val r = u.latest!!
+                Text("Nouvelle version : ${r.title}", fontWeight = FontWeight.Bold, color = LocalObd.current.ok)
+                Text("Publiée le ${r.date} · ${"%.1f".format(r.size / 1_048_576.0)} Mo", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (r.notes.isNotBlank()) Text(r.notes.take(600), style = MaterialTheme.typography.bodySmall)
+                Button(onClick = { scope.launch { up.downloadAndInstall(ctx, s.githubToken) } }) {
+                    Icon(Icons.Rounded.Download, null); Spacer(Modifier.width(6.dp)); Text("Télécharger et installer")
+                }
+                Text("Vos véhicules, trajets et réglages sont conservés.", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            u.latest != null -> Text("Vous avez la dernière version.", color = LocalObd.current.ok, fontWeight = FontWeight.SemiBold)
+        }
+        u.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = LocalObd.current.warn) }
+        if (!u.checking && u.progress == null) OutlinedButton(onClick = { scope.launch { up.check(ctx, s.githubToken) } }) {
+            Icon(Icons.Rounded.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Rechercher une mise à jour")
+        }
+        if (u.lastCheck > 0) Text("Dernière vérification : ${java.text.SimpleDateFormat("d MMM à HH:mm", java.util.Locale.FRANCE).format(java.util.Date(u.lastCheck))}",
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SwitchRow("Vérifier au démarrage", "Au plus toutes les 6 heures, si internet est disponible", s.autoUpdateCheck) { v ->
+            ObdManager.updateSettings { it.copy(autoUpdateCheck = v) }
+        }
+        TextButton(onClick = { showToken = !showToken }, contentPadding = PaddingValues(0.dp)) {
+            Text(if (showToken) "Masquer l'accès au dépôt privé" else "Dépôt GitHub privé ?")
+        }
+        if (showToken) {
+            Text("Si le dépôt « ${up.REPO} » est privé, créez sur GitHub un jeton à accès fin (Settings › Developer settings › Fine-grained tokens), " +
+                "limité à ce dépôt, avec la permission « Contents : Read-only », puis collez-le ici. Il reste sur ce téléphone.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(token, { token = it.trim() }, label = { Text("Jeton GitHub") }, singleLine = true,
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = { ObdManager.updateSettings { it.copy(githubToken = token) }; scope.launch { up.check(ctx, token) } }) { Text("Enregistrer et vérifier") }
+                if (s.githubToken.isNotEmpty()) TextButton(onClick = { token = ""; ObdManager.updateSettings { it.copy(githubToken = "") } }) { Text("Supprimer") }
+            }
+        }
     }
 }

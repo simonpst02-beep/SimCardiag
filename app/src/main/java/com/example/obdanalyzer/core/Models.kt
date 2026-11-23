@@ -133,6 +133,9 @@ data class Settings(
     // Carburant & données
     val fuelPrice: Double = 1.85,
     val keepTripsDays: Int = 0,           // 0 = illimité
+    // Mises à jour
+    val autoUpdateCheck: Boolean = true,
+    val githubToken: String = "",         // seulement si le dépôt GitHub est privé
 )
 
 object Presets {

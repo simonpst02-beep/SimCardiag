@@ -14,9 +14,22 @@ android {
         applicationId = "fr.simcardiag.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "2.0"
+        // Sur GitHub, chaque compilation reçoit un numéro : c'est lui que l'appli compare pour proposer une mise à jour
+        val build = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 2
+        versionCode = build
+        versionName = "2.0.$build"
     }
+
+    // Même clé pour toutes les versions de test : Android accepte ainsi les mises à jour par-dessus
+    signingConfigs {
+        create("shared") {
+            storeFile = file("simcardiag-debug.jks")
+            storePassword = "android"
+            keyAlias = "simcardiag"
+            keyPassword = "android"
+        }
+    }
+    buildTypes.getByName("debug").signingConfig = signingConfigs.getByName("shared")
 
     // Signature de la version publiable : créez keystore.properties à la racine du projet (voir README)
     val ks = rootProject.file("keystore.properties")

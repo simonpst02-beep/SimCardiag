@@ -61,6 +61,8 @@ class Store(private val context: Context) {
             breakMinutes = o.optInt("breakMinutes", 120),
             fuelPrice = o.optDouble("fuelPrice", 1.85),
             keepTripsDays = o.optInt("keepTripsDays", 0),
+            autoUpdateCheck = o.optBoolean("autoUpdateCheck", true),
+            githubToken = o.optString("githubToken", ""),
         )
     }.getOrDefault(Settings())
 
@@ -75,6 +77,7 @@ class Store(private val context: Context) {
             .put("pollRate", s.pollRate.name).put("notifValues", s.notifValues).put("speedAlertKmh", s.speedAlertKmh)
             .put("reserveKm", s.reserveKm).put("batteryLowV", s.batteryLowV).put("breakMinutes", s.breakMinutes)
             .put("fuelPrice", s.fuelPrice).put("keepTripsDays", s.keepTripsDays)
+            .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 

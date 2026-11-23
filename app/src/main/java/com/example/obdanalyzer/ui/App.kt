@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.obdanalyzer.core.Conn
 import com.example.obdanalyzer.core.ObdManager
 import com.example.obdanalyzer.core.Orientation
+import com.example.obdanalyzer.core.Updater
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.compose.ui.graphics.Color
@@ -55,6 +56,15 @@ fun ObdRoot() {
         var drive by rememberSaveable { mutableStateOf(false) }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
         val snack = remember { SnackbarHostState() }
+        val upd by Updater.state.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) {
+            // Vérification discrète au lancement, au plus une fois toutes les 6 heures
+            if (s.autoUpdateCheck && System.currentTimeMillis() - upd.lastCheck > 6 * 3600_000L) {
+                Updater.check(ctx, s.githubToken)
+                val r = Updater.state.value
+                if (r.available) snack.showSnackbar("Nouvelle version ${r.latest?.title ?: ""} disponible : Paramètres › Mises à jour")
+            }
+        }
         LaunchedEffect(l.message) {
             l.message?.let { snack.showSnackbar(it); ObdManager.consumeMessage() }
         }
@@ -84,7 +94,7 @@ fun ObdRoot() {
                 val wide = maxWidth >= 700.dp
                 val content: @Composable (Modifier) -> Unit = { m ->
                     Column(m.fillMaxSize()) {
-                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, onDrive = { drive = true }, onSettings = { settingsOpen = true })
+                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, onDrive = { drive = true }, onSettings = { settingsOpen = true })
                         Box(Modifier.weight(1f)) {
                             when (tab) {
                                 0 -> HomeScreen(l, v, wide) { tab = it }
@@ -133,7 +143,8 @@ private fun TabIcon(t: Tab, dot: Boolean) {
 }
 
 @Composable
-private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, device: String?, wide: Boolean, onDrive: () -> Unit, onSettings: () -> Unit) {
+private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, device: String?, wide: Boolean, updateDot: Boolean,
+                   onDrive: () -> Unit, onSettings: () -> Unit) {
     val obd = LocalObd.current
     var ask by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = if (wide) 8.dp else 4.dp, bottom = 4.dp),
@@ -163,7 +174,9 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
         } else if (conn == Conn.CONNECTING) {
             IconButton(onClick = { ObdManager.disconnect() }) { Icon(Icons.Rounded.Close, "Annuler") }
         }
-        IconButton(onClick = onSettings) { Icon(Icons.Rounded.Settings, "Paramètres") }
+        IconButton(onClick = onSettings) {
+            BadgedBox(badge = { if (updateDot) Badge(containerColor = MaterialTheme.colorScheme.primary) }) { Icon(Icons.Rounded.Settings, "Paramètres") }
+        }
     }
     if (ask) AlertDialog(
         onDismissRequest = { ask = false },
