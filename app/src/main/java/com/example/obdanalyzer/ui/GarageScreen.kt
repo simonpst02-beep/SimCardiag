@@ -1,5 +1,6 @@
 package com.example.obdanalyzer.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,15 +34,33 @@ import kotlin.math.roundToInt
 fun GarageScreen(vehicles: List<Vehicle>, active: Vehicle, s: Settings, liveKm: Double, wide: Boolean) {
     val left: @Composable ColumnScope.() -> Unit = {
         VehiclesCard(vehicles, active)
-        MaintenanceCard(active, liveKm)
         CustomPidsCard(active)
     }
     val right: @Composable ColumnScope.() -> Unit = {
-        DriveModeCard(s)
-        AlertsCard(s)
-        SettingsCard(s)
-        BackupCard()
+        MaintenanceCard(active, liveKm)
     }
+    TwoColumns(wide, left, right)
+}
+
+/** Écran Paramètres, ouvert par la roue dentée en haut à droite. */
+@Composable
+fun SettingsScreen(s: Settings, wide: Boolean, onBack: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = onBack)
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding()) {
+        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, "Retour") }
+            Text("Paramètres", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+        }
+        Box(Modifier.weight(1f)) {
+            TwoColumns(wide,
+                left = { SettingsCard(s); AlertsCard(s) },
+                right = { DriveModeCard(s); BackupCard() })
+        }
+    }
+}
+
+@Composable
+private fun TwoColumns(wide: Boolean, left: @Composable ColumnScope.() -> Unit, right: @Composable ColumnScope.() -> Unit) {
     if (wide) {
         Row(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp), content = left)

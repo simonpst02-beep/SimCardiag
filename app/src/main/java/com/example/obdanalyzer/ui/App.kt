@@ -37,6 +37,7 @@ fun ObdRoot() {
     AppTheme(s.theme) {
         var tab by rememberSaveable { mutableIntStateOf(0) }
         var drive by rememberSaveable { mutableStateOf(false) }
+        var settingsOpen by rememberSaveable { mutableStateOf(false) }
         val snack = remember { SnackbarHostState() }
         LaunchedEffect(l.message) {
             l.message?.let { snack.showSnackbar(it); ObdManager.consumeMessage() }
@@ -49,11 +50,17 @@ fun ObdRoot() {
                 DriveMode(l, v, s) { drive = false }
                 return@Surface
             }
+            if (settingsOpen) {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    SettingsScreen(s, maxWidth >= 700.dp) { settingsOpen = false }
+                }
+                return@Surface
+            }
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val wide = maxWidth >= 700.dp
                 val content: @Composable (Modifier) -> Unit = { m ->
                     Column(m.fillMaxSize()) {
-                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, onDrive = { drive = true })
+                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, onDrive = { drive = true }, onSettings = { settingsOpen = true })
                         Box(Modifier.weight(1f)) {
                             when (tab) {
                                 0 -> HomeScreen(l, v, wide) { tab = it }
@@ -102,7 +109,7 @@ private fun TabIcon(t: Tab, dot: Boolean) {
 }
 
 @Composable
-private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, device: String?, wide: Boolean, onDrive: () -> Unit) {
+private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, device: String?, wide: Boolean, onDrive: () -> Unit, onSettings: () -> Unit) {
     val obd = LocalObd.current
     var ask by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = if (wide) 8.dp else 4.dp, bottom = 4.dp),
@@ -132,6 +139,7 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
         } else if (conn == Conn.CONNECTING) {
             IconButton(onClick = { ObdManager.disconnect() }) { Icon(Icons.Rounded.Close, "Annuler") }
         }
+        IconButton(onClick = onSettings) { Icon(Icons.Rounded.Settings, "Paramètres") }
     }
     if (ask) AlertDialog(
         onDismissRequest = { ask = false },
