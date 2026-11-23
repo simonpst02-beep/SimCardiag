@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.obdanalyzer"
+        applicationId = "fr.simcardiag.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 2

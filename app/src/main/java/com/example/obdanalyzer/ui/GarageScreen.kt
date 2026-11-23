@@ -379,12 +379,12 @@ private fun BackupCard() {
         Text("Enregistrez vos véhicules, trajets, pleins et réglages dans un fichier (Drive, mail…), puis restaurez-le sur la tablette ou un nouveau téléphone.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton(onClick = { save.launch("obd-analyzer-sauvegarde.json") }) { Text("Sauvegarder") }
+            FilledTonalButton(onClick = { save.launch("simcardiag-sauvegarde.json") }) { Text("Sauvegarder") }
             OutlinedButton(onClick = { load.launch(arrayOf("application/json", "*/*")) }, enabled = ObdManager.live.value.conn == Conn.IDLE) { Text("Restaurer") }
         }
         msg?.let { Text(it, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold) }
         ReportButton()
-        Text("Astuce : ajoutez le widget « OBD Analyzer » sur l'écran d'accueil (appui long › Widgets) pour voir l'autonomie et le prochain entretien.",
+        Text("Astuce : ajoutez le widget « SimCarDiag » sur l'écran d'accueil (appui long › Widgets) pour voir l'autonomie et le prochain entretien.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -102,7 +102,7 @@ class ObdService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle("OBD Analyzer")
+            .setContentTitle("SimCarDiag")
             .setContentText(text.lineSequence().first())
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setOngoing(true)

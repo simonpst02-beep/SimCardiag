@@ -31,7 +31,7 @@ object ReportPdf {
         val df = SimpleDateFormat("d MMMM yyyy 'à' HH:mm", Locale.FRANCE)
 
         w.title("Rapport de diagnostic")
-        w.small("Établi le ${df.format(Date())} avec OBD Analyzer et un boîtier ${l.device ?: "OBD"}")
+        w.small("Établi le ${df.format(Date())} avec SimCarDiag et un boîtier ${l.device ?: "OBD"}")
         w.gap(10)
 
         w.h("Véhicule")
@@ -128,7 +128,7 @@ object ReportPdf {
             pageNo++
             page = doc.startPage(PdfDocument.PageInfo.Builder(W, H, pageNo).create())
             y = M.toFloat()
-            page!!.canvas.drawText("OBD Analyzer · page $pageNo", (W - M).toFloat() - smallP.measureText("OBD Analyzer · page $pageNo"), (H - 24).toFloat(), smallP)
+            page!!.canvas.drawText("SimCarDiag · page $pageNo", (W - M).toFloat() - smallP.measureText("SimCarDiag · page $pageNo"), (H - 24).toFloat(), smallP)
         }
 
         private fun need(h: Float) { if (y + h > H - M) newPage() }

@@ -227,7 +227,7 @@ class Store(private val context: Context) {
 
     /** Toutes les données (sauf les fichiers CSV et les séries) dans un seul JSON. */
     fun exportAll(): String = JSONObject()
-        .put("format", "obd-analyzer-backup").put("version", 2)
+        .put("format", "simcardiag-backup").put("version", 2)
         .put("settings", prefs.getString("settings", "{}"))
         .put("vehicles", prefs.getString("vehicles", "[]"))
         .put("trips", if (tripsFile.exists()) tripsFile.readText() else "[]")
@@ -238,7 +238,7 @@ class Store(private val context: Context) {
     /** Remplace les données par celles de la sauvegarde. Renvoie false si le fichier n'est pas reconnu. */
     fun importAll(json: String): Boolean = runCatching {
         val o = JSONObject(json)
-        if (o.optString("format") != "obd-analyzer-backup") return false
+        if (o.optString("format") != "simcardiag-backup") return false
         JSONArray(o.getString("vehicles")) // validation
         prefs.edit().putString("settings", o.getString("settings")).putString("vehicles", o.getString("vehicles")).apply()
         tripsFile.writeText(o.optString("trips", "[]"))

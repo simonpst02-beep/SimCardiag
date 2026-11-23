@@ -1,4 +1,4 @@
-# OBD Analyzer (Android)
+# SimCarDiag (Android)
 
 Application Android (Kotlin + Jetpack Compose) pour lire et analyser les données OBD-II d'une voiture avec un boîtier **OBDLink MX+** (ou tout ELM327 en Bluetooth classique).
 
@@ -55,7 +55,7 @@ Application Android (Kotlin + Jetpack Compose) pour lire et analyser les donnée
 
 ## Compiler et installer
 1. Installez **Android Studio** (version récente, JDK 17 inclus).
-2. *File → Open* et choisissez le dossier `ObdAnalyzer`. Android Studio télécharge Gradle et les dépendances.
+2. *File → Open* et choisissez le dossier `SimCarDiag`. Android Studio télécharge Gradle et les dépendances.
 3. Sur le téléphone ou la tablette : activez les *Options développeur* et le *Débogage USB*, branchez l'appareil.
 4. Cliquez sur ▶ *Run*.
 
@@ -91,7 +91,7 @@ app/src/main/java/com/example/obdanalyzer/
    keyPassword=…
    ```
 3. `Build › Build Bundle(s) / APK(s)` en variante *release* : l'APK signé s'installe sur n'importe quel téléphone, l'AAB s'envoie sur la Play Console.
-4. Changez `applicationId` (`com.example.obdanalyzer`) avant une publication sur le Play Store.
+4. L'identifiant de l'appli est `fr.simcardiag.app` : il doit être unique sur le Play Store, changez-le si besoin avant la première publication.
 
 ## Limites (suite)
 - Les calculateurs non OBD répondent parfois dans un langage propre à la marque (GMLAN chez Opel, protocole Volvo) : l'appli les signale mais ne peut pas lire leurs codes.

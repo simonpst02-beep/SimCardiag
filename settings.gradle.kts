@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "ObdAnalyzer"
+rootProject.name = "SimCarDiag"
 include(":app")
