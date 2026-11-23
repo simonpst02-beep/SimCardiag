@@ -9,6 +9,12 @@ import com.example.obdanalyzer.core.TripPoint
 import com.example.obdanalyzer.core.MaintItem
 import com.example.obdanalyzer.core.Settings
 import com.example.obdanalyzer.core.ThemeMode
+import com.example.obdanalyzer.core.Orientation
+import com.example.obdanalyzer.core.PollRate
+import com.example.obdanalyzer.core.ConsUnit
+import com.example.obdanalyzer.core.TempUnit
+import com.example.obdanalyzer.core.Wallpaper
+import com.example.obdanalyzer.core.Accent
 import com.example.obdanalyzer.core.TripSummary
 import com.example.obdanalyzer.core.Vehicle
 import com.example.obdanalyzer.core.WidgetCfg
@@ -39,6 +45,22 @@ class Store(private val context: Context) {
             gps = o.optBoolean("gps", true),
             activeVehicleId = o.optString("activeVehicleId").ifEmpty { null },
             lastDevice = o.optString("lastDevice").ifEmpty { null },
+            keepScreenOn = o.optBoolean("keepScreenOn", true),
+            wallpaper = enumOr(o.optString("wallpaper"), Wallpaper.NONE),
+            accent = enumOr(o.optString("accent"), Accent.BLUE),
+            orientation = enumOr(o.optString("orientation"), Orientation.AUTO),
+            consUnit = enumOr(o.optString("consUnit"), ConsUnit.L100),
+            tempUnit = enumOr(o.optString("tempUnit"), TempUnit.C),
+            autoDriveKmh = o.optInt("autoDriveKmh", 0),
+            autoRecord = o.optBoolean("autoRecord", false),
+            pollRate = enumOr(o.optString("pollRate"), PollRate.NORMAL),
+            notifValues = o.optBoolean("notifValues", true),
+            speedAlertKmh = o.optInt("speedAlertKmh", 0),
+            reserveKm = o.optInt("reserveKm", 60),
+            batteryLowV = o.optDouble("batteryLowV", 12.2),
+            breakMinutes = o.optInt("breakMinutes", 120),
+            fuelPrice = o.optDouble("fuelPrice", 1.85),
+            keepTripsDays = o.optInt("keepTripsDays", 0),
         )
     }.getOrDefault(Settings())
 
@@ -48,6 +70,11 @@ class Store(private val context: Context) {
             .put("rpmLimit", s.rpmLimit).put("tempLimit", s.tempLimit).put("autoReconnect", s.autoReconnect)
             .put("driveMetrics", JSONArray(s.driveMetrics)).put("monitorDtc", s.monitorDtc).put("gps", s.gps)
             .put("activeVehicleId", s.activeVehicleId ?: "").put("lastDevice", s.lastDevice ?: "")
+            .put("keepScreenOn", s.keepScreenOn).put("wallpaper", s.wallpaper.name).put("accent", s.accent.name).put("orientation", s.orientation.name).put("consUnit", s.consUnit.name)
+            .put("tempUnit", s.tempUnit.name).put("autoDriveKmh", s.autoDriveKmh).put("autoRecord", s.autoRecord)
+            .put("pollRate", s.pollRate.name).put("notifValues", s.notifValues).put("speedAlertKmh", s.speedAlertKmh)
+            .put("reserveKm", s.reserveKm).put("batteryLowV", s.batteryLowV).put("breakMinutes", s.breakMinutes)
+            .put("fuelPrice", s.fuelPrice).put("keepTripsDays", s.keepTripsDays)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 
@@ -246,6 +273,17 @@ class Store(private val context: Context) {
         perfFile.writeText(o.optString("perf", "[]"))
         true
     }.getOrDefault(false)
+
+    /** Efface toutes les données de l'appli (réglages, véhicules, trajets, pleins, chronos, fichiers). */
+    fun wipe() {
+        prefs.edit().clear().apply()
+        listOf(tripsFile, fuelFile, perfFile).forEach { it.delete() }
+        seriesDir.listFiles()?.forEach { it.delete() }
+        logsDir.listFiles()?.forEach { it.delete() }
+    }
+
+    private inline fun <reified E : Enum<E>> enumOr(name: String, def: E): E =
+        runCatching { enumValueOf<E>(name) }.getOrDefault(def)
 
     private fun JSONArray.strings(): List<String> = (0 until length()).map { getString(it) }
 }

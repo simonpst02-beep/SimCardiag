@@ -76,7 +76,7 @@ class ObdService : Service() {
                 delay(2000)
                 val l = ObdManager.live.value
                 val text = when (l.conn) {
-                    Conn.CONNECTED -> buildString {
+                    Conn.CONNECTED -> if (!ObdManager.settings.value.notifValues) "Connecté · trajet en cours" else buildString {
                         l.values["speed"]?.let { append("${it.toInt()} km/h") }
                         l.values["cool"]?.let { append(" · ${it.toInt()} °C") }
                         append(" · ${"%.1f".format(l.stats.distanceKm)} km")

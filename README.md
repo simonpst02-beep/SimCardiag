@@ -51,6 +51,12 @@ Application Android (Kotlin + Jetpack Compose) pour lire et analyser les donnée
 - **Chronos** 0-100, 80-120 et 400 m automatiques
 - **Icône**, version 2.0, signature de la version publiable, **sauvegarde / restauration** des données
 
+**Paramètres** (roue dentée en haut à droite)
+- Apparence : 3 fonds d'écran sport (fibre de carbone, bandes de course, route de nuit), 5 couleurs d'accent, thème clair/sombre, orientation, écran toujours allumé, unités (L/100 km ou km/L, °C ou °F)
+- Conduite : mode conduite automatique au-dessus d'une vitesse, CSV automatique, fréquence de lecture, valeurs dans la notification
+- Alertes : régime, température, vitesse, réserve (km), batterie faible, rappel de pause
+- Carburant et données : prix du litre (coût des trajets), durée de conservation, oubli du boîtier, effacement complet, sauvegarde
+
 **Tablette** : en paysage ou sur grand écran (≥ 700 dp), navigation latérale et mise en page en colonnes.
 
 ## Compiler et installer

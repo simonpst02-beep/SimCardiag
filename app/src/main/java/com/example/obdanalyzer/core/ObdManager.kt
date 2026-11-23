@@ -183,6 +183,7 @@ object ObdManager {
         _fuel.value = store.loadFuel()
         _perf.value = store.loadPerf()
         gps = GpsTracker(ctx)
+        pruneTrips()
     }
 
     val logsDir get() = store.logsDir
@@ -272,6 +273,7 @@ object ObdManager {
                 startSession()
                 _live.update { it.copy(conn = Conn.CONNECTED, step = 4, message = "Connecté ! ${it.supported.size} capteurs disponibles") }
                 startPolling()
+                if (_settings.value.autoRecord && logger == null) toggleRecording()
             } catch (e: Exception) {
                 conn.close()
                 ObdService.stop(ctx)
@@ -382,7 +384,11 @@ object ObdManager {
                 val dt = (now - last) / 1000.0
                 last = now
                 compute(values, dt)
-                delay(if (_live.value.multi) 30 else 60)
+                delay(when (_settings.value.pollRate) {
+                    PollRate.ECO -> 250L
+                    PollRate.FAST -> 0L
+                    PollRate.NORMAL -> if (_live.value.multi) 30L else 60L
+                })
             }
         }
     }
@@ -499,10 +505,15 @@ object ObdManager {
         values["oil"]?.let { if (it >= 135) a += Alert("oil", Level.BAD, "Huile moteur très chaude (${it.toInt()} °C). Levez le pied.") }
         values["volt"]?.let {
             if (rpm > 500 && it < 13.0) a += Alert("alt", Level.BAD, "L'alternateur ne recharge plus la batterie (${"%.1f".format(it)} V). Faites-le contrôler rapidement.")
-            if (rpm < 100 && it < 12.2) a += Alert("bat", Level.WARN, "Batterie faible (${"%.1f".format(it)} V) : le prochain démarrage pourrait être difficile.")
+            if (rpm < 100 && it < s.batteryLowV) a += Alert("bat", Level.WARN, "Batterie faible (${"%.1f".format(it)} V) : le prochain démarrage pourrait être difficile.")
         }
         if (rpm >= s.rpmLimit) a += Alert("rpm", Level.WARN, "Régime élevé : passez la vitesse supérieure.")
-        values["fuel"]?.let { if (it <= 12) a += Alert("fuel", Level.WARN, "Vous êtes sur la réserve : pensez à faire le plein.") }
+        val range = values["range"]
+        if ((range != null && range <= s.reserveKm) || (range == null && (values["fuel"] ?: 100.0) <= 12))
+            a += Alert("fuel", Level.WARN, "Vous êtes sur la réserve${range?.let { " (≈ ${it.toInt()} km)" } ?: ""} : pensez à faire le plein.")
+        if (s.speedAlertKmh > 0) values["speed"]?.let { if (it >= s.speedAlertKmh) a += Alert("speed", Level.WARN, "Vitesse : ${it.toInt()} km/h (alerte à ${s.speedAlertKmh}).") }
+        if (s.breakMinutes > 0 && sessionStart > 0 && System.currentTimeMillis() - sessionStart > s.breakMinutes * 60_000L)
+            a += Alert("break", Level.WARN, "Vous roulez depuis plus de ${s.breakMinutes / 60} h${if (s.breakMinutes % 60 > 0) " ${s.breakMinutes % 60}" else ""} : pensez à faire une pause.")
         _live.value.dtcs?.let { if (it.isNotEmpty()) a += Alert("dtc", Level.WARN, "${it.size} code(s) défaut enregistré(s). Voir le diagnostic.") }
         val now = System.currentTimeMillis()
         val v = activeVehicle()
@@ -973,6 +984,29 @@ object ObdManager {
         _fuel.value = store.loadFuel()
         _perf.value = store.loadPerf()
         if (_vehicles.value.none { it.id == _settings.value.activeVehicleId }) updateSettings { it.copy(activeVehicleId = _vehicles.value.first().id) }
+        CarWidget.refresh(ctx)
+        return true
+    }
+
+    /** Supprime les trajets plus anciens que la durée de conservation choisie. */
+    fun pruneTrips() {
+        val days = _settings.value.keepTripsDays
+        if (days <= 0) return
+        val limit = System.currentTimeMillis() - days * 86_400_000L
+        _trips.value.filter { it.start < limit }.forEach { deleteTrip(it) }
+    }
+
+    fun forgetDevice() = updateSettings { it.copy(lastDevice = null) }
+
+    /** Efface toutes les données et repart d'une appli neuve (boîtier déconnecté uniquement). */
+    fun wipeAll(): Boolean {
+        if (_live.value.conn != Conn.IDLE) return false
+        store.wipe()
+        _settings.value = Settings()
+        val v = Vehicle(name = "Ma voiture", maintenance = Presets.defaultMaintenance(0.0, System.currentTimeMillis()))
+        _vehicles.value = listOf(v); store.saveVehicles(_vehicles.value)
+        updateSettings { it.copy(activeVehicleId = v.id) }
+        _trips.value = emptyList(); _fuel.value = emptyList(); _perf.value = emptyList()
         CarWidget.refresh(ctx)
         return true
     }

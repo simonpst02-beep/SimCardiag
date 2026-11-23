@@ -168,6 +168,7 @@ private fun TripCard(t: TripSummary, ctx: Context, onReplay: () -> Unit) {
                 Chip("${ObdManager.fmt(t.distanceKm)} km", "distance", Modifier.weight(1f))
                 Chip("${t.durationS / 60} min", "durée", Modifier.weight(1f))
                 Chip(t.avgConsumption?.let { ObdManager.fmt(it) } ?: "—", "L/100 km", Modifier.weight(1f))
+                Chip(String.format(java.util.Locale.FRANCE, "%.2f €", t.cost(ObdManager.settings.value.fuelPrice)), "coût estimé", Modifier.weight(1f))
             }
             TextButton(onClick = onReplay, contentPadding = PaddingValues(0.dp)) {
                 Icon(Icons.Rounded.PlayCircle, null); Spacer(Modifier.width(6.dp)); Text("Revoir le trajet et la carte")

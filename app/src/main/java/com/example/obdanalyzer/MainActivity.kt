@@ -27,7 +27,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent { PermissionGate { ObdRoot() } }
     }
 }
@@ -54,7 +53,7 @@ fun PermissionGate(content: @Composable () -> Unit) {
         else ObdManager.autoConnect()
     }
     if (granted) content()
-    else AppTheme(ObdManager.settings.value.theme) {
+    else AppTheme(ObdManager.settings.value.theme, ObdManager.settings.value.accent) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("Autorisation Bluetooth", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)

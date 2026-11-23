@@ -34,6 +34,7 @@ import com.example.obdanalyzer.core.ObdManager
 import com.example.obdanalyzer.core.Vehicle
 import com.example.obdanalyzer.core.WidgetCfg
 import com.example.obdanalyzer.core.ecoLabel
+import com.example.obdanalyzer.core.displayValue
 import com.example.obdanalyzer.obd.MetricDef
 import kotlin.math.roundToInt
 
@@ -68,9 +69,14 @@ fun HintLine(text: String, level: Level?) {
     }
 }
 
+/** Jauge dont le remplissage suit la valeur brute mais qui affiche la valeur convertie (km/L, °F). */
+@Composable
+fun GaugeLabeled(raw: Double?, shown: Double?, def: MetricDef, color: Color, unit: String, modifier: Modifier = Modifier) =
+    Gauge(raw, def, color, unit, modifier, shown)
+
 /** Jauge en arc de cercle (240°). */
 @Composable
-fun Gauge(value: Double?, def: MetricDef, color: Color, unit: String, modifier: Modifier = Modifier) {
+fun Gauge(value: Double?, def: MetricDef, color: Color, unit: String, modifier: Modifier = Modifier, shown: Double? = value) {
     val track = LocalObd.current.track
     val frac = if (value == null || value.isNaN()) 0f else ((value - def.min) / (def.max - def.min)).toFloat().coerceIn(0f, 1f)
     Box(modifier.aspectRatio(1.35f), contentAlignment = Alignment.Center) {
@@ -82,7 +88,7 @@ fun Gauge(value: Double?, def: MetricDef, color: Color, unit: String, modifier: 
             if (frac > 0f) drawArc(color, 150f, 240f * frac, false, topLeft, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 10.dp)) {
-            Text(value?.let { ObdManager.fmt(it) } ?: "—", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
+            Text(shown?.let { ObdManager.fmt(it) } ?: "—", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold)
             Text(unit, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -125,9 +131,9 @@ fun ColumnScope.WidgetContent(w: WidgetCfg, l: Live, v: Vehicle, onTab: (Int) ->
     val def = ObdManager.metric(w.metric)
     when (w.kind) {
         "val" -> if (def != null) {
-            val value = l.values[def.key]
-            val unit = if (def.key == "cons") l.consUnit else def.unit
-            val (h, lvl) = hint(def.key, value, l, v)
+            val raw = l.values[def.key]
+            val (value, unit) = displayValue(def.key, raw, if (def.key == "cons") l.consUnit else def.unit, ObdManager.settings.value)
+            val (h, lvl) = hint(def.key, raw, l, v)
             MetricHead(def)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(value?.let { ObdManager.fmt(it) } ?: "—", fontSize = if (w.wide) 46.sp else 28.sp, fontWeight = FontWeight.ExtraBold)
@@ -140,7 +146,8 @@ fun ColumnScope.WidgetContent(w: WidgetCfg, l: Live, v: Vehicle, onTab: (Int) ->
             val (h, lvl) = hint(def.key, value, l, v)
             val col = when (lvl) { Level.BAD -> LocalObd.current.bad; Level.WARN -> LocalObd.current.warn; else -> familyColor(def.family) }
             MetricHead(def)
-            Gauge(value, def, col, if (def.key == "cons") l.consUnit else def.unit,
+            val shown = displayValue(def.key, value, if (def.key == "cons") l.consUnit else def.unit, ObdManager.settings.value)
+            GaugeLabeled(value, shown.first, def, col, shown.second,
                 Modifier.fillMaxWidth().widthIn(max = 260.dp).align(Alignment.CenterHorizontally))
             HintLine(h, lvl)
         }
@@ -161,7 +168,7 @@ fun ColumnScope.WidgetContent(w: WidgetCfg, l: Live, v: Vehicle, onTab: (Int) ->
                 BigStat(s.avgConsumption?.let { ObdManager.fmt(it) } ?: "—", "L/100 km*", Modifier.weight(1f))
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
-            Text("Moyenne ${ObdManager.fmt(s.avgSpeed)} km/h · Max ${ObdManager.fmt(s.maxSpeed)} km/h · Carburant ${"%.2f".format(s.fuelL)} L",
+            Text("Moyenne ${ObdManager.fmt(s.avgSpeed)} km/h · Max ${ObdManager.fmt(s.maxSpeed)} km/h · Carburant ${"%.2f".format(s.fuelL)} L (≈ ${"%.2f".format(s.fuelL * ObdManager.settings.value.fuelPrice)} €)",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         "eco" -> {

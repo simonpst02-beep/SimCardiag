@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.obdanalyzer.core.Level
 import com.example.obdanalyzer.core.ThemeMode
+import com.example.obdanalyzer.core.Accent
 import com.example.obdanalyzer.obd.Family
 
 /** Couleurs propres à l'appli, différentes en clair et en sombre. */
@@ -61,14 +62,21 @@ private val LightScheme = lightColorScheme(
 )
 
 @Composable
-fun AppTheme(mode: ThemeMode, content: @Composable () -> Unit) {
+fun AppTheme(mode: ThemeMode, accent: Accent = Accent.BLUE, content: @Composable () -> Unit) {
     val dark = when (mode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
     }
+    val base = Color(accent.argb)
+    // En clair, la couleur d'accent est assombrie pour rester lisible sur fond blanc
+    val primary = if (dark) base else Color(base.red * 0.62f, base.green * 0.62f, base.blue * 0.62f)
+    val scheme = (if (dark) DarkScheme else LightScheme).copy(
+        primary = primary,
+        onPrimary = if (dark) Color(0xFF101318) else Color.White,
+    )
     androidx.compose.runtime.CompositionLocalProvider(LocalObd provides if (dark) DarkObd else LightObd) {
-        MaterialTheme(colorScheme = if (dark) DarkScheme else LightScheme, content = content)
+        MaterialTheme(colorScheme = scheme, content = content)
     }
 }
 

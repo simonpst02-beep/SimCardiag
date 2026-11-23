@@ -22,6 +22,7 @@ import com.example.obdanalyzer.core.Live
 import com.example.obdanalyzer.core.ObdManager
 import com.example.obdanalyzer.core.Settings
 import com.example.obdanalyzer.core.Vehicle
+import com.example.obdanalyzer.core.displayValue
 
 /** Écran simplifié pour la conduite : 4 très grandes valeurs, aucune manipulation nécessaire. */
 @Composable
@@ -52,8 +53,9 @@ fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
             rows.forEach { row ->
                 Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { d ->
-                        val value = l.values[d.key]
-                        val (_, lvl) = hint(d.key, value, l, v)
+                        val raw = l.values[d.key]
+                        val (value, unitShown) = displayValue(d.key, raw, if (d.key == "cons") l.consUnit else d.unit, s)
+                        val (_, lvl) = hint(d.key, raw, l, v)
                         val c = when (lvl) { Level.BAD -> LocalObd.current.bad; Level.WARN -> LocalObd.current.warn; else -> MaterialTheme.colorScheme.onSurface }
                         Column(
                             Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(28.dp))
@@ -63,7 +65,7 @@ fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
                             Text(d.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(value?.let { ObdManager.fmt(it) } ?: "—", fontSize = if (landscape) 72.sp else 64.sp,
                                 fontWeight = FontWeight.Black, color = c, maxLines = 1)
-                            Text(if (d.key == "cons") l.consUnit else d.unit, style = MaterialTheme.typography.titleMedium,
+                            Text(unitShown, style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

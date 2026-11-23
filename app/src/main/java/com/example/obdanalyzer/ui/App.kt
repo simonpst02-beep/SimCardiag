@@ -17,6 +17,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.obdanalyzer.core.Conn
 import com.example.obdanalyzer.core.ObdManager
+import com.example.obdanalyzer.core.Orientation
+import android.app.Activity
+import android.content.pm.ActivityInfo
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 
 private data class Tab(val label: String, val icon: ImageVector)
 private val TABS = listOf(
@@ -34,7 +40,17 @@ fun ObdRoot() {
     val trips by ObdManager.trips.collectAsStateWithLifecycle()
     val v = vehicles.firstOrNull { it.id == s.activeVehicleId } ?: vehicles.first()
 
-    AppTheme(s.theme) {
+    AppTheme(s.theme, s.accent) {
+        val view = LocalView.current
+        val ctx = LocalContext.current
+        DisposableEffect(s.keepScreenOn) { view.keepScreenOn = s.keepScreenOn; onDispose { } }
+        LaunchedEffect(s.orientation) {
+            (ctx as? Activity)?.requestedOrientation = when (s.orientation) {
+                Orientation.AUTO -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                Orientation.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                Orientation.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            }
+        }
         var tab by rememberSaveable { mutableIntStateOf(0) }
         var drive by rememberSaveable { mutableStateOf(false) }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
@@ -44,6 +60,13 @@ fun ObdRoot() {
         }
         val connected = l.conn == Conn.CONNECTED || l.conn == Conn.RECONNECTING
         LaunchedEffect(connected) { if (!connected) drive = false }
+        // Passage automatique en mode conduite au-dessus de la vitesse choisie
+        val speed = l.values["speed"] ?: 0.0
+        var autoArmed by remember { mutableStateOf(true) }
+        LaunchedEffect(speed >= s.autoDriveKmh && s.autoDriveKmh > 0, speed < 5) {
+            if (s.autoDriveKmh > 0 && speed >= s.autoDriveKmh && autoArmed && connected) { drive = true; autoArmed = false }
+            if (speed < 5) autoArmed = true
+        }
 
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             if (drive) {
@@ -56,6 +79,7 @@ fun ObdRoot() {
                 }
                 return@Surface
             }
+            WallpaperLayer(s.wallpaper)
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val wide = maxWidth >= 700.dp
                 val content: @Composable (Modifier) -> Unit = { m ->
@@ -73,7 +97,7 @@ fun ObdRoot() {
                 }
                 if (wide) {
                     Row(Modifier.fillMaxSize().systemBarsPadding()) {
-                        NavigationRail(containerColor = MaterialTheme.colorScheme.background) {
+                        NavigationRail(containerColor = Color.Transparent) {
                             Spacer(Modifier.height(12.dp))
                             TABS.forEachIndexed { i, t ->
                                 NavigationRailItem(selected = tab == i, onClick = { tab = i },
@@ -94,7 +118,7 @@ fun ObdRoot() {
                             }
                         },
                         snackbarHost = { SnackbarHost(snack) },
-                        containerColor = MaterialTheme.colorScheme.background,
+                        containerColor = Color.Transparent,
                     ) { pad -> content(Modifier.padding(pad)) }
                 }
                 if (wide) SnackbarHost(snack, Modifier.align(Alignment.BottomCenter).padding(24.dp))

@@ -8,6 +8,14 @@ enum class Fuel(val label: String, val afr: Double, val densityGPerL: Double) {
 }
 
 enum class ThemeMode(val label: String) { SYSTEM("Comme le téléphone"), LIGHT("Clair"), DARK("Sombre") }
+enum class Orientation(val label: String) { AUTO("Automatique"), PORTRAIT("Portrait"), LANDSCAPE("Paysage") }
+enum class PollRate(val label: String, val delayMs: Long) { ECO("Économie de batterie", 250), NORMAL("Normale", 60), FAST("Rapide", 0) }
+enum class ConsUnit(val label: String) { L100("L/100 km"), KML("km/L") }
+enum class TempUnit(val label: String) { C("°C"), F("°F") }
+enum class Wallpaper(val label: String) { NONE("Uni"), CARBON("Fibre de carbone"), STRIPES("Bandes de course"), NIGHT_ROAD("Route de nuit") }
+enum class Accent(val label: String, val argb: Long) {
+    BLUE("Bleu", 0xFF8AB4FF), RED("Rouge course", 0xFFFF5A5F), ORANGE("Orange", 0xFFFF9F43), GREEN("Vert", 0xFF4CD787), YELLOW("Jaune", 0xFFFFD23F)
+}
 
 /** Un widget du tableau de bord. kind = val, gauge, chart, stats, dtc, rec, eco */
 data class WidgetCfg(val kind: String, val metric: String? = null, val wide: Boolean = false)
@@ -80,6 +88,17 @@ data class TripSummary(
     val file: String? = null,
 ) {
     val avgConsumption: Double? get() = if (distanceKm > 0.5 && fuelL > 0) fuelL / distanceKm * 100 else null
+    fun cost(pricePerL: Double): Double = fuelL * pricePerL
+}
+
+private val TEMP_KEYS = setOf("cool", "iat", "ext", "oil", "dpft")
+
+/** Valeur et unité à afficher selon les préférences (km/L, °F). */
+fun displayValue(key: String, v: Double?, unit: String, s: Settings): Pair<Double?, String> = when {
+    v == null -> null to unit
+    key == "cons" && unit == "L/100km" && s.consUnit == ConsUnit.KML -> (if (v > 0.1) 100 / v else null) to "km/L"
+    key in TEMP_KEYS && s.tempUnit == TempUnit.F -> (v * 9 / 5 + 32) to "°F"
+    else -> v to unit
 }
 
 data class Settings(
@@ -94,6 +113,26 @@ data class Settings(
     val gps: Boolean = true,
     val activeVehicleId: String? = null,
     val lastDevice: String? = null,
+    // Affichage
+    val keepScreenOn: Boolean = true,
+    val wallpaper: Wallpaper = Wallpaper.NONE,
+    val accent: Accent = Accent.BLUE,
+    val orientation: Orientation = Orientation.AUTO,
+    val consUnit: ConsUnit = ConsUnit.L100,
+    val tempUnit: TempUnit = TempUnit.C,
+    // Conduite
+    val autoDriveKmh: Int = 0,            // 0 = désactivé
+    val autoRecord: Boolean = false,
+    val pollRate: PollRate = PollRate.NORMAL,
+    val notifValues: Boolean = true,
+    // Alertes supplémentaires
+    val speedAlertKmh: Int = 0,           // 0 = désactivé
+    val reserveKm: Int = 60,
+    val batteryLowV: Double = 12.2,
+    val breakMinutes: Int = 120,          // 0 = désactivé
+    // Carburant & données
+    val fuelPrice: Double = 1.85,
+    val keepTripsDays: Int = 0,           // 0 = illimité
 )
 
 object Presets {

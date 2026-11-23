@@ -20,6 +20,18 @@ import com.example.obdanalyzer.core.MaintItem
 import com.example.obdanalyzer.core.ObdManager
 import com.example.obdanalyzer.core.Settings
 import com.example.obdanalyzer.core.ThemeMode
+import com.example.obdanalyzer.core.Accent
+import com.example.obdanalyzer.core.Wallpaper
+import com.example.obdanalyzer.core.Orientation
+import com.example.obdanalyzer.core.PollRate
+import com.example.obdanalyzer.core.ConsUnit
+import com.example.obdanalyzer.core.TempUnit
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import com.example.obdanalyzer.core.Vehicle
 import com.example.obdanalyzer.core.status
 import com.example.obdanalyzer.obd.Expr
@@ -53,8 +65,8 @@ fun SettingsScreen(s: Settings, wide: Boolean, onBack: () -> Unit) {
         }
         Box(Modifier.weight(1f)) {
             TwoColumns(wide,
-                left = { SettingsCard(s); AlertsCard(s) },
-                right = { DriveModeCard(s); BackupCard() })
+                left = { AppearanceCard(s); DrivingCard(s); SettingsCard(s) },
+                right = { AlertsCard(s); DriveModeCard(s); DataCard(s); BackupCard(); AboutCard() })
         }
     }
 }
@@ -319,13 +331,24 @@ private fun AlertsCard(s: Settings) {
         Text("Alerte température moteur : ${s.tempLimit} °C", fontWeight = FontWeight.SemiBold)
         Slider(value = s.tempLimit.toFloat(), onValueChange = { v -> ObdManager.updateSettings { it.copy(tempLimit = v.roundToInt()) } },
             valueRange = 95f..120f, steps = 24)
+        Text(if (s.speedAlertKmh == 0) "Alerte de vitesse : désactivée" else "Alerte de vitesse : ${s.speedAlertKmh} km/h", fontWeight = FontWeight.SemiBold)
+        Slider(value = s.speedAlertKmh.toFloat(), onValueChange = { v -> ObdManager.updateSettings { it.copy(speedAlertKmh = (v / 10).roundToInt() * 10) } },
+            valueRange = 0f..200f, steps = 19)
+        Text("Alerte réserve : sous ${s.reserveKm} km d'autonomie", fontWeight = FontWeight.SemiBold)
+        Slider(value = s.reserveKm.toFloat(), onValueChange = { v -> ObdManager.updateSettings { it.copy(reserveKm = (v / 10).roundToInt() * 10) } },
+            valueRange = 20f..150f, steps = 12)
+        Text("Batterie faible au repos : sous ${"%.1f".format(s.batteryLowV)} V", fontWeight = FontWeight.SemiBold)
+        Slider(value = s.batteryLowV.toFloat(), onValueChange = { v -> ObdManager.updateSettings { it.copy(batteryLowV = (v * 10).roundToInt() / 10.0) } },
+            valueRange = 11.5f..12.6f, steps = 10)
+        Text("Rappel de pause", fontWeight = FontWeight.SemiBold)
+        ChipRow(listOf(0 to "Jamais", 90 to "1 h 30", 120 to "2 h", 180 to "3 h"), s.breakMinutes) { m -> ObdManager.updateSettings { it.copy(breakMinutes = m) } }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SettingsCard(s: Settings) {
-    SectionCard(Icons.Rounded.Settings, MaterialTheme.colorScheme.primary, "Réglages") {
+    SectionCard(Icons.Rounded.Bluetooth, MaterialTheme.colorScheme.primary, "Connexion et suivi") {
         SwitchRow("Reconnexion automatique", "Se reconnecte seul au boîtier après une coupure et à l'ouverture de l'appli", s.autoReconnect) { v ->
             ObdManager.updateSettings { it.copy(autoReconnect = v) }
         }
@@ -335,13 +358,7 @@ private fun SettingsCard(s: Settings) {
         SwitchRow("Tracer les trajets sur une carte", "Utilise le GPS du téléphone pendant les trajets", s.gps) { v ->
             ObdManager.updateSettings { it.copy(gps = v) }
         }
-        Text("Thème", fontWeight = FontWeight.SemiBold)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ThemeMode.entries.forEach { m ->
-                FilterChip(selected = s.theme == m, onClick = { ObdManager.updateSettings { it.copy(theme = m) } }, label = { Text(m.label) })
-            }
-        }
-        Text("Le thème clair est plus lisible en plein soleil.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
     }
 }
 
@@ -404,6 +421,115 @@ private fun BackupCard() {
         msg?.let { Text(it, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold) }
         ReportButton()
         Text("Astuce : ajoutez le widget « SimCarDiag » sur l'écran d'accueil (appui long › Widgets) pour voir l'autonomie et le prochain entretien.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ChipRow(items: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { (v, n) -> FilterChip(selected = v == selected, onClick = { onSelect(v) }, label = { Text(n) }) }
+    }
+}
+
+@Composable
+private fun AppearanceCard(s: Settings) {
+    SectionCard(Icons.Rounded.Palette, MaterialTheme.colorScheme.primary, "Apparence") {
+        Text("Fond d'écran", fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Wallpaper.entries.forEach { w ->
+                val sel = s.wallpaper == w
+                Column(Modifier.weight(1f).clickable { ObdManager.updateSettings { it.copy(wallpaper = w) } },
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(Modifier.fillMaxWidth().aspectRatio(0.62f).clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.background)
+                        .border(if (sel) 3.dp else 1.dp, if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(14.dp))) {
+                        WallpaperLayer(w, Modifier.fillMaxSize())
+                    }
+                    Text(w.label, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                }
+            }
+        }
+        Text("Couleur d'accent", fontWeight = FontWeight.SemiBold)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Accent.entries.forEach { a ->
+                val sel = s.accent == a
+                Box(Modifier.size(40.dp).clip(CircleShape).background(Color(a.argb))
+                    .border(if (sel) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                    .clickable { ObdManager.updateSettings { it.copy(accent = a) } }, contentAlignment = Alignment.Center) {
+                    if (sel) Icon(Icons.Rounded.Check, a.label, tint = Color(0xFF101318))
+                }
+            }
+        }
+        Text("Thème", fontWeight = FontWeight.SemiBold)
+        ChipRow(ThemeMode.entries.map { it to it.label }, s.theme) { m -> ObdManager.updateSettings { it.copy(theme = m) } }
+        Text("Orientation de l'écran", fontWeight = FontWeight.SemiBold)
+        ChipRow(Orientation.entries.map { it to it.label }, s.orientation) { o -> ObdManager.updateSettings { it.copy(orientation = o) } }
+        SwitchRow("Garder l'écran allumé", "Pendant que l'appli est ouverte", s.keepScreenOn) { v -> ObdManager.updateSettings { it.copy(keepScreenOn = v) } }
+        Text("Unités", fontWeight = FontWeight.SemiBold)
+        ChipRow(ConsUnit.entries.map { it to it.label }, s.consUnit) { u -> ObdManager.updateSettings { it.copy(consUnit = u) } }
+        ChipRow(TempUnit.entries.map { it to it.label }, s.tempUnit) { u -> ObdManager.updateSettings { it.copy(tempUnit = u) } }
+    }
+}
+
+@Composable
+private fun DrivingCard(s: Settings) {
+    SectionCard(Icons.Rounded.DirectionsCar, LocalObd.current.speed, "Conduite") {
+        Text(if (s.autoDriveKmh == 0) "Mode conduite automatique : désactivé" else "Mode conduite automatique au-dessus de ${s.autoDriveKmh} km/h",
+            fontWeight = FontWeight.SemiBold)
+        Slider(value = s.autoDriveKmh.toFloat(), onValueChange = { v -> ObdManager.updateSettings { it.copy(autoDriveKmh = (v / 10).roundToInt() * 10) } },
+            valueRange = 0f..130f, steps = 12)
+        SwitchRow("Enregistrer le détail CSV automatiquement", "Dès la connexion au boîtier", s.autoRecord) { v -> ObdManager.updateSettings { it.copy(autoRecord = v) } }
+        Text("Fréquence de lecture", fontWeight = FontWeight.SemiBold)
+        ChipRow(PollRate.entries.map { it to it.label }, s.pollRate) { r -> ObdManager.updateSettings { it.copy(pollRate = r) } }
+        Text("« Rapide » rend les jauges plus fluides, « Économie » ménage la batterie du téléphone.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SwitchRow("Valeurs dans la notification", "Vitesse et température visibles écran verrouillé", s.notifValues) { v ->
+            ObdManager.updateSettings { it.copy(notifValues = v) }
+        }
+    }
+}
+
+@Composable
+private fun DataCard(s: Settings) {
+    var price by remember(s.fuelPrice) { mutableStateOf(String.format(java.util.Locale.FRANCE, "%.3f", s.fuelPrice)) }
+    var wipe by remember { mutableStateOf(false) }
+    SectionCard(Icons.Rounded.Storage, LocalObd.current.energy, "Carburant et données") {
+        OutlinedTextField(price, { t ->
+            price = t
+            t.replace(',', '.').toDoubleOrNull()?.takeIf { it in 0.5..5.0 }?.let { p -> ObdManager.updateSettings { it.copy(fuelPrice = p) } }
+        }, label = { Text("Prix du litre (€)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            supportingText = { Text("Sert à estimer le coût de chaque trajet") })
+        Text("Conserver les trajets", fontWeight = FontWeight.SemiBold)
+        ChipRow(listOf(0 to "Toujours", 365 to "1 an", 90 to "3 mois"), s.keepTripsDays) { d ->
+            ObdManager.updateSettings { it.copy(keepTripsDays = d) }; ObdManager.pruneTrips()
+        }
+        if (s.lastDevice != null) Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Boîtier mémorisé : ${s.lastDevice}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { ObdManager.forgetDevice() }) { Text("Oublier") }
+        }
+        TextButton(onClick = { wipe = true }, enabled = ObdManager.live.value.conn == com.example.obdanalyzer.core.Conn.IDLE) {
+            Icon(Icons.Rounded.DeleteForever, null, tint = LocalObd.current.bad); Spacer(Modifier.width(6.dp))
+            Text("Effacer toutes les données", color = LocalObd.current.bad)
+        }
+    }
+    if (wipe) AlertDialog(
+        onDismissRequest = { wipe = false },
+        title = { Text("Tout effacer ?") },
+        text = { Text("Véhicules, trajets, pleins, chronos et réglages seront supprimés de ce téléphone. Pensez à faire une sauvegarde avant.") },
+        confirmButton = { TextButton(onClick = { wipe = false; ObdManager.wipeAll() }) { Text("Tout effacer", color = LocalObd.current.bad) } },
+        dismissButton = { TextButton(onClick = { wipe = false }) { Text("Annuler") } },
+    )
+}
+
+@Composable
+private fun AboutCard() {
+    val ctx = LocalContext.current
+    val version = runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "?"
+    SectionCard(Icons.Rounded.Info, MaterialTheme.colorScheme.onSurfaceVariant, "À propos") {
+        KeyValue("SimCarDiag", "version $version")
+        Text("Fonds de carte © contributeurs OpenStreetMap. Les informations affichées viennent des calculateurs via la prise OBD et ne remplacent pas un diagnostic professionnel.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
