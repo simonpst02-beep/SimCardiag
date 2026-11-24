@@ -33,7 +33,7 @@ import com.example.obdanalyzer.core.displayValue
 @Composable
 fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
     BackHandler(onBack = onExit)
-    val defs = s.driveMetrics.mapNotNull { ObdManager.metric(it) }.take(4)
+    val defs = s.driveMetrics.mapNotNull { ObdManager.metric(it) }.take(8)
     val alert = l.alerts.firstOrNull { it.level != Level.OK }
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding().displayCutoutPadding()) {
         val landscape = maxWidth > maxHeight
@@ -63,11 +63,13 @@ fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
                         maxLines = if (compact) 1 else 3, overflow = TextOverflow.Ellipsis)
                 }
             }
-            // Paysage sur téléphone : toutes les valeurs sur une ligne ; tablette en paysage : 2 x 2 ; portrait : une par ligne
+            // Jusqu'à 8 mesures ; les chiffres rapetissent tout seuls quand il y en a plus.
+            // Téléphone couché : 1 ligne jusqu'à 4, puis 2 lignes. Tablette / autoradio : 2, 3 ou 4 colonnes. Portrait : 1 colonne jusqu'à 4, puis 2.
+            val n = defs.size.coerceAtLeast(1)
             val cols = when {
-                landscape && compact -> defs.size.coerceAtLeast(1)
-                landscape -> 2
-                else -> 1
+                landscape && compact -> if (n <= 4) n else (n + 1) / 2
+                landscape -> when { n <= 4 -> 2; n <= 6 -> 3; else -> 4 }
+                else -> if (n <= 4) 1 else 2
             }
             defs.chunked(cols).forEach { row ->
                 Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(gap)) {

@@ -320,12 +320,12 @@ private fun CustomPidDialog(onDismiss: () -> Unit, onSave: (CustomPid) -> Unit) 
 @Composable
 private fun DriveModeCard(s: Settings) {
     SectionCard(Icons.Rounded.Fullscreen, LocalObd.current.engine, "Mode conduite") {
-        Text("Choisissez jusqu'à 4 mesures affichées en très grand pendant la conduite.",
+        Text("Choisissez jusqu'à 8 mesures affichées en grand pendant la conduite (${s.driveMetrics.size}/8). Plus il y en a, plus les chiffres sont petits.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             ObdManager.metricDefs().forEach { d ->
                 val on = d.key in s.driveMetrics
-                FilterChip(selected = on, enabled = on || s.driveMetrics.size < 4, onClick = {
+                FilterChip(selected = on, enabled = on || s.driveMetrics.size < 8, onClick = {
                     ObdManager.updateSettings { st -> st.copy(driveMetrics = if (on) st.driveMetrics - d.key else st.driveMetrics + d.key) }
                 }, label = { Text(d.name) })
             }
