@@ -610,7 +610,7 @@ private fun AppearanceCard(s: Settings) {
                     ObdManager.updateSettings {
                         when (w) {
                             Wallpaper.CARBON_RED, Wallpaper.CARBON_RED_LIVE -> it.copy(wallpaper = w, accent = Accent.RED, theme = ThemeMode.DARK)
-                            Wallpaper.CARBON_GREEN -> it.copy(wallpaper = w, accent = Accent.NEON, theme = ThemeMode.DARK)
+                            Wallpaper.CARBON_GREEN, Wallpaper.CARBON_GREEN_LIVE -> it.copy(wallpaper = w, accent = Accent.NEON, theme = ThemeMode.DARK)
                             else -> it.copy(wallpaper = w)
                         }
                     }

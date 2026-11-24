@@ -17,7 +17,7 @@ enum class Wallpaper(val label: String) {
     NONE("Uni"), CARBON("Fibre de carbone"), STRIPES("Bandes de course"), NIGHT_ROAD("Route de nuit"),
     TACHO("Compte-tours"), CHECKERED("Damier"), CIRCUIT("Circuit"), SYNTHWAVE("Rétro synthwave"), HONEYCOMB("Calandre"),
     CARBON_RED("Carbone rouge sport"), CARBON_GREEN("Carbone vert néon"),
-    CARBON_RED_LIVE("Carbone rouge dynamique")
+    CARBON_RED_LIVE("Carbone rouge dynamique"), CARBON_GREEN_LIVE("Carbone vert dynamique")
 }
 enum class Accent(val label: String, val argb: Long) {
     BLUE("Bleu", 0xFF8AB4FF), RED("Rouge course", 0xFFFF5A5F), ORANGE("Orange", 0xFFFF9F43), GREEN("Vert", 0xFF4CD787), YELLOW("Jaune", 0xFFFFD23F), NEON("Vert néon", 0xFF39FF14)

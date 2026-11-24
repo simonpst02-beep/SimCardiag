@@ -26,7 +26,8 @@ import com.example.obdanalyzer.core.Wallpaper
 @Composable
 fun WallpaperLayer(w: Wallpaper, modifier: Modifier = Modifier.fillMaxSize(), speed: Double? = null, rpm: Double? = null, rpmLimit: Int = 5500) {
     if (w == Wallpaper.NONE) return
-    if (w == Wallpaper.CARBON_RED_LIVE) { LiveCarbon(modifier, speed, rpm, rpmLimit); return }
+    if (w == Wallpaper.CARBON_RED_LIVE) { LiveCarbon(modifier, speed, rpm, rpmLimit, Color(0xFFE10600)); return }
+    if (w == Wallpaper.CARBON_GREEN_LIVE) { LiveCarbon(modifier, speed, rpm, rpmLimit, Color(0xFF39FF14)); return }
     val accent = MaterialTheme.colorScheme.primary
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val ink = if (dark) Color.White else Color.Black
@@ -229,19 +230,19 @@ fun WallpaperLayer(w: Wallpaper, modifier: Modifier = Modifier.fillMaxSize(), sp
                 drawPath(path, ink.copy(alpha = if (dark) 0.06f else 0.05f), style = Stroke(2f))
                 drawRect(Brush.verticalGradient(listOf(accent.copy(alpha = 0.10f), Color.Transparent, accent.copy(alpha = 0.08f))))
             }
-            Wallpaper.NONE, Wallpaper.CARBON_RED_LIVE -> Unit
+            Wallpaper.NONE, Wallpaper.CARBON_RED_LIVE, Wallpaper.CARBON_GREEN_LIVE -> Unit
         }
     }
 }
 
 
 /**
- * Carbone rouge dynamique : fond carbone noir, lames rouges parcourues par un reflet,
+ * Carbone dynamique (rouge ou vert) : fond carbone noir, lames colorées parcourues par un reflet,
  * traits de vitesse qui défilent plus vite quand la voiture accélère, lueur qui monte avec le régime.
  * À l'arrêt ou sans boîtier, l'animation tourne au ralenti.
  */
 @Composable
-private fun LiveCarbon(modifier: Modifier, speed: Double?, rpm: Double?, rpmLimit: Int) {
+private fun LiveCarbon(modifier: Modifier, speed: Double?, rpm: Double?, rpmLimit: Int, tint: Color) {
     val sp by androidx.compose.runtime.rememberUpdatedState(speed ?: 0.0)
     var phase by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     var sweep by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
@@ -259,7 +260,7 @@ private fun LiveCarbon(modifier: Modifier, speed: Double?, rpm: Double?, rpmLimi
         }
     }
     val glow = ((rpm ?: 0.0) / rpmLimit).toFloat().coerceIn(0f, 1f)
-    val red = Color(0xFFE10600)
+    val red = tint
     Canvas(modifier) {
         val W = size.width; val H = size.height
         // carbone
