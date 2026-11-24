@@ -185,6 +185,27 @@ fun StatsScreen(trips: List<com.example.obdanalyzer.core.TripSummary>, v: Vehicl
     }
 }
 
+/** Niveau du réservoir : ce que l'appli estime, et le bouton pour le caler sur l'aiguille de la jauge. */
+@Composable
+fun FuelLevelCard(v: Vehicle) {
+    val obd = LocalObd.current
+    val live by ObdManager.live.collectAsState()
+    var ask by remember { mutableStateOf(false) }
+    if (ask) FuelLevelDialog(v) { ask = false }
+    SectionCard(Icons.Rounded.Speed, obd.energy, "Niveau du réservoir") {
+        val left = live.values["left"]; val range = live.values["range"]
+        Text(
+            when {
+                left != null -> "Il reste environ ${ObdManager.fmt(left)} L" + (range?.let { " · ${ObdManager.fmt(it)} km d'autonomie" } ?: "")
+                v.fuelRefL != null -> "Dernier niveau indiqué : ${ObdManager.fmt(v.fuelRefL)} L (le calcul reprend à la connexion)"
+                else -> "Pas encore de niveau connu."
+            }, fontWeight = FontWeight.SemiBold)
+        Text("Votre voiture ne transmet pas sa jauge : indiquez où est l'aiguille pour caler le calcul du carburant restant et de l'autonomie.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FilledTonalButton(onClick = { ask = true }) { Icon(Icons.Rounded.Tune, null); Spacer(Modifier.width(6.dp)); Text("Régler selon l'aiguille") }
+    }
+}
+
 /** Fenêtre plein écran « Carburant le moins cher », ouverte depuis le raccourci de l'accueil. */
 @Composable
 fun FuelPricesDialog(v: Vehicle, onDismiss: () -> Unit) {
@@ -194,9 +215,11 @@ fun FuelPricesDialog(v: Vehicle, onDismiss: () -> Unit) {
             Column(Modifier.fillMaxSize().systemBarsPadding()) {
                 Row(Modifier.padding(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Fermer") }
-                    Text("Carburant le moins cher", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                    Text("Carburant", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
                 }
                 Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp).widthIn(max = 760.dp)) {
+                    FuelLevelCard(v)
+                    Spacer(Modifier.height(14.dp))
                     FuelPricesCard(v, autoSearch = true)
                 }
             }
