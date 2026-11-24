@@ -39,9 +39,10 @@ fun HomeScreen(l: Live, v: Vehicle, wide: Boolean, car: Boolean = false, locked:
         return
     }
     var carEdit by rememberSaveable { mutableStateOf(false) }
+    val showHealth = ObdManager.settings.collectAsState().value.showHealth
     if (locked) carEdit = false
     if (car && !carEdit) {
-        CarDashboard(l, v, locked, onTab) { carEdit = true }
+        CarDashboard(l, v, locked, showHealth, onTab) { carEdit = true }
         return
     }
     if (car) {
@@ -59,13 +60,13 @@ fun HomeScreen(l: Live, v: Vehicle, wide: Boolean, car: Boolean = false, locked:
                 Modifier.width(340.dp).fillMaxHeight().verticalScroll(rememberScrollState()).padding(start = 16.dp, top = 8.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                HealthCard(l, v, onTab)
+                if (showHealth) HealthCard(l, v, onTab)
                 DeviceCard(l, v)
             }
             Dashboard(l, v, cols = 4, wide = true, locked = locked, onTab = onTab, header = null)
         }
     } else {
-        Dashboard(l, v, cols = 2, wide = false, locked = locked, onTab = onTab, header = { HealthCard(l, v, onTab) })
+        Dashboard(l, v, cols = 2, wide = false, locked = locked, onTab = onTab, header = if (showHealth) ({ HealthCard(l, v, onTab) }) else null)
     }
 }
 
@@ -74,7 +75,7 @@ fun HomeScreen(l: Live, v: Vehicle, wide: Boolean, car: Boolean = false, locked:
  * sans zone vide en bas. Lignes de 4 cases (un widget large en prend 2) ; au-delà de 3 lignes, on fait défiler.
  */
 @Composable
-private fun CarDashboard(l: Live, v: Vehicle, locked: Boolean, onTab: (Int) -> Unit, onEdit: () -> Unit) {
+private fun CarDashboard(l: Live, v: Vehicle, locked: Boolean, showHealth: Boolean, onTab: (Int) -> Unit, onEdit: () -> Unit) {
     val rows = remember(v.layout) {
         val out = mutableListOf<MutableList<WidgetCfg>>()
         var used = 4
@@ -93,7 +94,7 @@ private fun CarDashboard(l: Live, v: Vehicle, locked: Boolean, onTab: (Int) -> U
         val rowH = ((maxHeight - bar - gap * shownRows) / shownRows).coerceAtLeast(120.dp)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(gap)) {
             Row(Modifier.fillMaxWidth().height(bar), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CarHealthChip(l, v, Modifier.weight(1f)) { onTab(1) }
+                if (showHealth) CarHealthChip(l, v, Modifier.weight(1f)) { onTab(1) } else Spacer(Modifier.weight(1f))
                 if (v.layout.any { it.kind == "rec" }) {
                     if (l.recording) Button(onClick = { ObdManager.toggleRecording() }, colors = ButtonDefaults.buttonColors(containerColor = LocalObd.current.bad)) {
                         Icon(Icons.Rounded.Stop, null); Spacer(Modifier.width(6.dp)); Text("Arrêter")

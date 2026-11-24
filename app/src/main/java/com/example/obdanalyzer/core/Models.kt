@@ -155,6 +155,7 @@ data class Settings(
     val voiceAlerts: Boolean = false,
     val shiftLight: Boolean = true,
     val drivingLock: Boolean = true,
+    val showHealth: Boolean = true,           // carte « État du véhicule » sur l'accueil
     // GPS
     val gpsDistance: Boolean = true,          // compter les km avec le GPS quand la voiture ne donne pas sa vitesse
     val gpsCorrect: Boolean = false,          // corriger la vitesse, les km et la consommation avec l'écart compteur / GPS

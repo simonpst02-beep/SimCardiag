@@ -412,6 +412,9 @@ private fun DashboardCard(wide: Boolean) {
     SectionCard(Icons.Rounded.Dashboard, MaterialTheme.colorScheme.primary, "Tableau de bord · ${v.name}") {
         Text("Partir d'un modèle", fontWeight = FontWeight.SemiBold)
         ChipRow(Presets.ALL.keys.map { it to it }, v.preset) { name -> ObdManager.updateActive { it.copy(layout = Presets.get(name), preset = name) } }
+        SwitchRow("État du véhicule", "Carte en haut de l'accueil : santé du moteur, alertes, prochain entretien", st.showHealth) { on ->
+            ObdManager.updateSettings { it.copy(showHealth = on) }
+        }
         Text("Widgets affichés (dans l'ordre)", fontWeight = FontWeight.SemiBold)
         if (layout.isEmpty()) Text("Aucun widget : l'accueil est vide.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         layout.forEachIndexed { i, w ->

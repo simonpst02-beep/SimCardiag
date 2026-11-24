@@ -71,6 +71,7 @@ class Store(private val context: Context) {
             shiftLight = o.optBoolean("shiftLight", true),
             drivingLock = o.optBoolean("drivingLock", true),
             gpsDistance = o.optBoolean("gpsDistance", true),
+            showHealth = o.optBoolean("showHealth", true),
             gpsCorrect = o.optBoolean("gpsCorrect", false),
             mediaButtons = o.optBoolean("mediaButtons", false),
             spotifyButton = o.optBoolean("spotifyButton", false),
@@ -92,7 +93,7 @@ class Store(private val context: Context) {
             .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
             .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)
             .put("layoutMode", s.layoutMode.name).put("voiceAlerts", s.voiceAlerts).put("shiftLight", s.shiftLight)
-            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("gpsCorrect", s.gpsCorrect).put("mediaButtons", s.mediaButtons).put("spotifyButton", s.spotifyButton)
+            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("showHealth", s.showHealth).put("gpsCorrect", s.gpsCorrect).put("mediaButtons", s.mediaButtons).put("spotifyButton", s.spotifyButton)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 
