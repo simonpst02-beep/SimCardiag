@@ -5,6 +5,7 @@ import android.net.Uri
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -62,7 +63,7 @@ fun CrankHistoryCard(v: Vehicle) {
 /** Stations les moins chères autour de soi (GPS + internet). */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun FuelPricesCard(v: Vehicle) {
+fun FuelPricesCard(v: Vehicle, autoSearch: Boolean = false) {
     val ctx = LocalContext.current
     val obd = LocalObd.current
     val scope = rememberCoroutineScope()
@@ -81,6 +82,7 @@ fun FuelPricesCard(v: Vehicle) {
             loading = false
         }
     }
+    LaunchedEffect(Unit) { if (autoSearch) search() }
     SectionCard(Icons.Rounded.LocalGasStation, obd.energy, "Prix des carburants autour de moi") {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             com.example.obdanalyzer.core.FuelPrices.Kind.entries.forEach { k ->
@@ -177,6 +179,25 @@ fun StatsScreen(trips: List<com.example.obdanalyzer.core.TripSummary>, v: Vehicl
                     }.onFailure { ObdManager.toast("PDF impossible : ${it.message}") }
                 }, contentPadding = PaddingValues(0.dp)) {
                     Icon(Icons.Rounded.PictureAsPdf, null); Spacer(Modifier.width(6.dp)); Text("Relevé PDF (note de frais)")
+                }
+            }
+        }
+    }
+}
+
+/** Fenêtre plein écran « Carburant le moins cher », ouverte depuis le raccourci de l'accueil. */
+@Composable
+fun FuelPricesDialog(v: Vehicle, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                Row(Modifier.padding(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "Fermer") }
+                    Text("Carburant le moins cher", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                }
+                Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(16.dp).widthIn(max = 760.dp)) {
+                    FuelPricesCard(v, autoSearch = true)
                 }
             }
         }

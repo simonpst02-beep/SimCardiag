@@ -56,6 +56,8 @@ fun ObdRoot() {
         var tab by rememberSaveable { mutableIntStateOf(0) }
         var drive by rememberSaveable { mutableStateOf(false) }
         var settingsOpen by rememberSaveable { mutableStateOf(false) }
+        var pricesOpen by rememberSaveable { mutableStateOf(false) }
+        if (pricesOpen) FuelPricesDialog(v) { pricesOpen = false }
         val snack = remember { SnackbarHostState() }
         val upd by Updater.state.collectAsStateWithLifecycle()
         LaunchedEffect(Unit) {
@@ -129,7 +131,8 @@ fun ObdRoot() {
                 val wide = when (s.layoutMode) { LayoutMode.PHONE -> false; LayoutMode.TABLET, LayoutMode.CAR -> true; LayoutMode.AUTO -> maxWidth >= 700.dp }
                 val content: @Composable (Modifier) -> Unit = { m ->
                     Column(m.fillMaxSize()) {
-                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, locked, s.mediaButtons || s.spotifyButton, onDrive = { drive = true }, onSettings = { settingsOpen = true })
+                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, locked, s.mediaButtons || s.spotifyButton,
+                            onDrive = { drive = true }, onSettings = { settingsOpen = true }, onPrices = { pricesOpen = true })
                         Box(Modifier.weight(1f)) {
                             when (tab) {
                                 0 -> HomeScreen(l, v, wide, car, locked) { if (!locked) tab = it }
@@ -179,7 +182,7 @@ private fun TabIcon(t: Tab, dot: Boolean) {
 
 @Composable
 private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, device: String?, wide: Boolean, updateDot: Boolean,
-                   locked: Boolean, media: Boolean, onDrive: () -> Unit, onSettings: () -> Unit) {
+                   locked: Boolean, media: Boolean, onDrive: () -> Unit, onSettings: () -> Unit, onPrices: () -> Unit) {
     val obd = LocalObd.current
     var ask by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = if (wide) 8.dp else 4.dp, bottom = 4.dp),
@@ -211,6 +214,8 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
         } else if (conn == Conn.CONNECTING) {
             IconButton(onClick = { ObdManager.disconnect() }) { Icon(Icons.Rounded.Close, "Annuler") }
         }
+        // raccourci : stations les moins chères autour de soi (désactivé en roulant)
+        IconButton(onClick = onPrices, enabled = !locked) { Icon(Icons.Rounded.LocalGasStation, "Carburant le moins cher") }
         IconButton(onClick = onSettings, enabled = !locked) {
             BadgedBox(badge = { if (updateDot) Badge(containerColor = MaterialTheme.colorScheme.primary) }) { Icon(Icons.Rounded.Settings, "Paramètres") }
         }
