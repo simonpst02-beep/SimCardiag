@@ -129,7 +129,7 @@ fun ObdRoot() {
                 val wide = when (s.layoutMode) { LayoutMode.PHONE -> false; LayoutMode.TABLET, LayoutMode.CAR -> true; LayoutMode.AUTO -> maxWidth >= 700.dp }
                 val content: @Composable (Modifier) -> Unit = { m ->
                     Column(m.fillMaxSize()) {
-                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, locked, s.mediaButtons, onDrive = { drive = true }, onSettings = { settingsOpen = true })
+                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, locked, s.mediaButtons || s.spotifyButton, onDrive = { drive = true }, onSettings = { settingsOpen = true })
                         Box(Modifier.weight(1f)) {
                             when (tab) {
                                 0 -> HomeScreen(l, v, wide, car, locked) { if (!locked) tab = it }

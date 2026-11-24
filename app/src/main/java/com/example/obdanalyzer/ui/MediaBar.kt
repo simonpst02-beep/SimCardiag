@@ -24,7 +24,9 @@ import kotlinx.coroutines.delay
 @Composable
 fun MediaBar(modifier: Modifier = Modifier, size: Dp = 56.dp) {
     val ctx = LocalContext.current
-    val spotify = com.example.obdanalyzer.core.ObdManager.settings.collectAsState().value.spotifyButton
+    val st = com.example.obdanalyzer.core.ObdManager.settings.collectAsState().value
+    val spotify = st.spotifyButton
+    val media = st.mediaButtons
     var playing by remember { mutableStateOf(MediaKeys.isPlaying(ctx)) }
     LaunchedEffect(Unit) { while (true) { playing = MediaKeys.isPlaying(ctx); delay(1000) } }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(if (size < 48.dp) 6.dp else 10.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
@@ -32,6 +34,7 @@ fun MediaBar(modifier: Modifier = Modifier, size: Dp = 56.dp) {
             colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color(0xFF1DB954), contentColor = Color.Black)) {
             Icon(Icons.Rounded.MusicNote, "Ouvrir Spotify", Modifier.size(size * 0.5f))
         }
+        if (media) {
         FilledTonalIconButton(onClick = { MediaKeys.volumeDown(ctx) }, Modifier.size(size)) {
             Icon(Icons.AutoMirrored.Rounded.VolumeDown, "Baisser le volume", Modifier.size(size * 0.5f))
         }
@@ -46,6 +49,7 @@ fun MediaBar(modifier: Modifier = Modifier, size: Dp = 56.dp) {
         }
         FilledTonalIconButton(onClick = { MediaKeys.volumeUp(ctx) }, Modifier.size(size)) {
             Icon(Icons.AutoMirrored.Rounded.VolumeUp, "Monter le volume", Modifier.size(size * 0.5f))
+        }
         }
     }
 }

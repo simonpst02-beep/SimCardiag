@@ -394,7 +394,7 @@ private fun CarCard(s: Settings) {
         SwitchRow("Boutons musique", "Volume −, précédent, lecture/pause, suivant et volume + en haut de l'écran et en mode conduite (radio, Spotify, YouTube Music…)", s.mediaButtons) { v ->
             ObdManager.updateSettings { it.copy(mediaButtons = v) }
         }
-        if (s.mediaButtons) SwitchRow("Raccourci Spotify", "Bouton vert qui ouvre Spotify (ou sa page dans le Play Store s'il n'est pas installé)", s.spotifyButton) { v ->
+        SwitchRow("Bouton Spotify", "Bouton vert en haut de l'écran et en mode conduite qui ouvre Spotify (ou sa page dans le Play Store s'il n'est pas installé)", s.spotifyButton) { v ->
             ObdManager.updateSettings { it.copy(spotifyButton = v) }
         }
         SwitchRow("Plein écran", "Masque les barres d'Android (glisser depuis le bord pour les revoir)", s.fullscreen) { v ->

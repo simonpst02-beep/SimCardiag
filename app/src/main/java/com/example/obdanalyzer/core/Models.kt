@@ -149,7 +149,7 @@ data class Settings(
     val shiftLight: Boolean = true,
     val drivingLock: Boolean = true,
     val mediaButtons: Boolean = false,
-    val spotifyButton: Boolean = true,        // raccourci Spotify à côté des boutons musique        // boutons volume − / lecture-pause / volume +
+    val spotifyButton: Boolean = false,       // raccourci Spotify, indépendant des boutons musique
     // Mises à jour
     val autoUpdateCheck: Boolean = true,
     val githubToken: String = "",         // seulement si le dépôt GitHub est privé

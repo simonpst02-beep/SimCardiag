@@ -71,7 +71,7 @@ class Store(private val context: Context) {
             shiftLight = o.optBoolean("shiftLight", true),
             drivingLock = o.optBoolean("drivingLock", true),
             mediaButtons = o.optBoolean("mediaButtons", false),
-            spotifyButton = o.optBoolean("spotifyButton", true),
+            spotifyButton = o.optBoolean("spotifyButton", false),
             githubToken = o.optString("githubToken", ""),
         )
     }.getOrDefault(Settings())
