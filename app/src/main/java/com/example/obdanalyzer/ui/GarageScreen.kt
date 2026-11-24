@@ -71,8 +71,8 @@ fun SettingsScreen(s: Settings, wide: Boolean, onBack: () -> Unit) {
         }
         Box(Modifier.weight(1f)) {
             TwoColumns(wide,
-                left = { AppearanceCard(s); DashboardCard(wide); CarCard(s); DrivingCard(s); SettingsCard(s) },
-                right = { UpdatesCard(s); AlertsCard(s); DriveModeCard(s); DataCard(s); BackupCard(); AboutCard() })
+                left = { UpdatesCard(s); AppearanceCard(s); DashboardCard(wide); CarCard(s); DrivingCard(s) },
+                right = { SettingsCard(s); AlertsCard(s); DriveModeCard(s); DataCard(s); BackupCard(); AboutCard() })
         }
     }
 }
