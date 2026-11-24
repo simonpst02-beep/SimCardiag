@@ -124,7 +124,7 @@ fun ObdRoot() {
                 }
                 return@Surface
             }
-            WallpaperLayer(s.wallpaper)
+            WallpaperLayer(s.wallpaper, speed = l.values["speed"], rpm = l.values["rpm"], rpmLimit = s.rpmLimit)
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val autoCar = maxWidth >= 700.dp && maxHeight < 700.dp && maxWidth > maxHeight
                 val car = when (s.layoutMode) { LayoutMode.CAR -> true; LayoutMode.AUTO -> autoCar; else -> false }

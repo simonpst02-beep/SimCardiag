@@ -609,7 +609,7 @@ private fun AppearanceCard(s: Settings) {
                     // les fonds carbone sportifs vont avec un thème sombre et leur couleur
                     ObdManager.updateSettings {
                         when (w) {
-                            Wallpaper.CARBON_RED -> it.copy(wallpaper = w, accent = Accent.RED, theme = ThemeMode.DARK)
+                            Wallpaper.CARBON_RED, Wallpaper.CARBON_RED_LIVE -> it.copy(wallpaper = w, accent = Accent.RED, theme = ThemeMode.DARK)
                             Wallpaper.CARBON_GREEN -> it.copy(wallpaper = w, accent = Accent.NEON, theme = ThemeMode.DARK)
                             else -> it.copy(wallpaper = w)
                         }

@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -22,8 +24,9 @@ import com.example.obdanalyzer.core.Wallpaper
 
 /** Fonds d'écran dessinés (aucune image à embarquer), discrets pour garder les valeurs lisibles. */
 @Composable
-fun WallpaperLayer(w: Wallpaper, modifier: Modifier = Modifier.fillMaxSize()) {
+fun WallpaperLayer(w: Wallpaper, modifier: Modifier = Modifier.fillMaxSize(), speed: Double? = null, rpm: Double? = null, rpmLimit: Int = 5500) {
     if (w == Wallpaper.NONE) return
+    if (w == Wallpaper.CARBON_RED_LIVE) { LiveCarbon(modifier, speed, rpm, rpmLimit); return }
     val accent = MaterialTheme.colorScheme.primary
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val ink = if (dark) Color.White else Color.Black
@@ -228,5 +231,71 @@ fun WallpaperLayer(w: Wallpaper, modifier: Modifier = Modifier.fillMaxSize()) {
             }
             Wallpaper.NONE -> Unit
         }
+    }
+}
+
+
+/**
+ * Carbone rouge dynamique : fond carbone noir, lames rouges parcourues par un reflet,
+ * traits de vitesse qui défilent plus vite quand la voiture accélère, lueur qui monte avec le régime.
+ * À l'arrêt ou sans boîtier, l'animation tourne au ralenti.
+ */
+@Composable
+private fun LiveCarbon(modifier: Modifier, speed: Double?, rpm: Double?, rpmLimit: Int) {
+    val sp by androidx.compose.runtime.rememberUpdatedState(speed ?: 0.0)
+    var phase by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var sweep by androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        var last = 0L
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { t ->
+                if (last != 0L) {
+                    val dt = ((t - last) / 1e9f).coerceAtMost(0.1f)
+                    phase = (phase + dt * (0.08f + (sp / 130.0).toFloat().coerceIn(0f, 1.2f))) % 1f
+                    sweep = (sweep + dt * 0.25f) % 1f
+                }
+                last = t
+            }
+        }
+    }
+    val glow = ((rpm ?: 0.0) / rpmLimit).toFloat().coerceIn(0f, 1f)
+    val red = Color(0xFFE10600)
+    Canvas(modifier) {
+        val W = size.width; val H = size.height
+        // carbone
+        drawRect(Color(0xFF07080A))
+        val c = 12f
+        val a = Color.White.copy(alpha = 0.065f); val b = Color.White.copy(alpha = 0.025f)
+        var yy = 0f; var row = 0
+        while (yy < H) {
+            var x = 0f; var col = 0
+            while (x < W) {
+                val hz = (row + col) % 2 == 0
+                drawRect(if (hz) a else b, Offset(x, yy), Size(c, c * 0.92f))
+                drawRect(if (hz) b else a, Offset(x + c, yy), Size(c * 0.92f, c))
+                x += 2 * c; col++
+            }
+            yy += c; row++
+        }
+        // lueur basse qui monte avec le régime
+        drawRect(Brush.verticalGradient(listOf(Color.Transparent, red.copy(alpha = 0.06f + glow * 0.22f)), startY = H * 0.45f, endY = H))
+        // traits de vitesse en biais
+        for (i in 0 until 9) {
+            val p = (phase + i / 9f) % 1f
+            val x0 = W * (1.15f - p * 1.4f) + (i * 37 % 60)
+            val y0 = H * ((i * 0.13f) % 1f)
+            val len = W * (0.10f + 0.08f * (i % 3))
+            drawLine(red.copy(alpha = 0.10f + 0.25f * (1 - p)), Offset(x0, y0), Offset(x0 + len, y0 - len * 0.35f), 2f + (i % 3), StrokeCap.Round)
+        }
+        // lames rouges avec reflet qui les parcourt
+        fun blade(x0: Float, wd: Float, alpha: Float) {
+            val path = Path().apply { moveTo(W * x0, 0f); lineTo(W * (x0 + wd), 0f); lineTo(W * (x0 + wd - 0.32f), H); lineTo(W * (x0 - 0.32f), H); close() }
+            drawPath(path, Brush.verticalGradient(listOf(red.copy(alpha = alpha), red.copy(alpha = alpha * 0.25f))))
+            val sy = H * (sweep * 1.4f - 0.2f)
+            drawPath(path, Brush.verticalGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent), startY = sy - H * 0.08f, endY = sy + H * 0.08f))
+        }
+        blade(0.86f, 0.07f, 0.55f + glow * 0.3f)
+        blade(0.96f, 0.03f, 0.40f + glow * 0.3f)
+        drawPath(Path().apply { moveTo(0f, H); lineTo(W * 0.34f, H); lineTo(0f, H * 0.80f); close() }, red.copy(alpha = 0.30f + glow * 0.3f))
     }
 }
