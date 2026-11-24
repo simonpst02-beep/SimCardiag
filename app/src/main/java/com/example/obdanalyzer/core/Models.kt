@@ -99,7 +99,15 @@ data class TripSummary(
     val harshAcc: Int,
     val harshBrake: Int,
     val file: String? = null,
+    /** Villes de départ et d'arrivée (trouvées grâce au GPS), si connues. */
+    val fromPlace: String? = null,
+    val toPlace: String? = null,
 ) {
+    val route: String? get() = when {
+        fromPlace != null && toPlace != null && fromPlace != toPlace -> "$fromPlace → $toPlace"
+        fromPlace != null -> "Dans $fromPlace"
+        else -> null
+    }
     val avgConsumption: Double? get() = if (distanceKm > 0.5 && fuelL > 0) fuelL / distanceKm * 100 else null
     fun cost(pricePerL: Double): Double = fuelL * pricePerL
 }

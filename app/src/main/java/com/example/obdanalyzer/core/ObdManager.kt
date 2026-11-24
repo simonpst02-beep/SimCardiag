@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Calendar
 import kotlin.math.max
@@ -646,6 +647,40 @@ object ObdManager {
         endSession(null)
     }
 
+    /** Positions GPS d'un trajet (latitude, longitude), dans l'ordre. */
+    fun tripPoints(t: TripSummary): List<Pair<Double, Double>> =
+        store.loadSeries(t.id).mapNotNull { p -> p.lat?.let { la -> p.lon?.let { lo -> la to lo } } }
+
+    /** Cherche en arrière-plan les villes de départ et d'arrivée d'un trajet (internet nécessaire). */
+    private fun nameTrip(id: String, pts: List<TripPoint>) { scope.launch { resolvePlaces(id, pts) } }
+
+    private suspend fun resolvePlaces(id: String, pts: List<TripPoint>): Boolean {
+        val gps = pts.mapNotNull { p -> p.lat?.let { la -> p.lon?.let { lo -> la to lo } } }
+        if (gps.isEmpty()) return false
+        val a = Places.city(ctx, gps.first().first, gps.first().second) ?: return false
+        delay(1100)   // OpenStreetMap demande au plus une recherche par seconde
+        val b = Places.city(ctx, gps.last().first, gps.last().second)
+        _trips.value = _trips.value.map { if (it.id == id) it.copy(fromPlace = a, toPlace = b ?: a) else it }
+        store.saveTrips(_trips.value)
+        return true
+    }
+
+    private var naming = false
+
+    /** Complète les villes des trajets récents qui n'en ont pas encore (ex. pas de réseau au moment du trajet). */
+    fun nameRecentTrips() {
+        if (naming) return
+        naming = true
+        scope.launch {
+            try {
+                for (t in _trips.value.filter { it.fromPlace == null }.take(15)) {
+                    val pts = withContext(Dispatchers.IO) { store.loadSeries(t.id) }
+                    if (resolvePlaces(t.id, pts)) delay(1100)
+                }
+            } finally { naming = false }
+        }
+    }
+
     private fun endSession(msg: String?) {
         pollJob?.cancel()
         val file = logger?.stop()
@@ -661,6 +696,7 @@ object ObdManager {
             _trips.value = listOf(t) + _trips.value
             store.saveTrips(_trips.value)
             if (series.isNotEmpty()) store.saveSeries(t.id, series.toList())
+            nameTrip(t.id, series.toList())
             val d = dist
             updateActive { it.copy(odometerKm = it.odometerKm + d) }
             // Écart compteur / GPS : moyenne pondérée avec les mesures des trajets précédents

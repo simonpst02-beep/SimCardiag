@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.example.obdanalyzer.core.ObdManager
+import com.example.obdanalyzer.core.Places
 import com.example.obdanalyzer.core.Live
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -66,6 +67,7 @@ private fun TripList(trips: List<TripSummary>, v: Vehicle, wide: Boolean, onRepl
         return
     }
     val ctx = LocalContext.current
+    LaunchedEffect(Unit) { ObdManager.nameRecentTrips() }   // villes de départ / arrivée des trajets qui n'en ont pas encore
     LazyVerticalGrid(
         GridCells.Fixed(if (wide) 2 else 1),
         contentPadding = PaddingValues(16.dp),
@@ -156,7 +158,9 @@ private fun TripCard(t: TripSummary, ctx: Context, onReplay: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 IconBadge(Icons.Rounded.Map, obd.speed)
                 Column(Modifier.weight(1f)) {
-                    Text(whenLabel(t.start), fontWeight = FontWeight.Bold)
+                    t.route?.let { Text(it, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium, maxLines = 2) }
+                    Text(whenLabel(t.start), fontWeight = if (t.route == null) FontWeight.Bold else FontWeight.Normal,
+                        color = if (t.route == null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Éco-conduite ${t.ecoScore}/100 · ${ecoLabel(t.ecoScore)}", style = MaterialTheme.typography.bodySmall, color = ecoC)
                 }
                 if (t.file != null) FilledTonalIconButton(onClick = { share(ctx, File(ObdManager.logsDir, t.file)) }) {
@@ -170,8 +174,18 @@ private fun TripCard(t: TripSummary, ctx: Context, onReplay: () -> Unit) {
                 Chip(t.avgConsumption?.let { ObdManager.fmt(it) } ?: "—", "L/100 km", Modifier.weight(1f))
                 Chip(String.format(java.util.Locale.FRANCE, "%.2f €", t.cost(ObdManager.settings.value.fuelPrice)), "coût estimé", Modifier.weight(1f))
             }
-            TextButton(onClick = onReplay, contentPadding = PaddingValues(0.dp)) {
-                Icon(Icons.Rounded.PlayCircle, null); Spacer(Modifier.width(6.dp)); Text("Revoir le trajet et la carte")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onReplay, contentPadding = PaddingValues(0.dp)) {
+                    Icon(Icons.Rounded.PlayCircle, null); Spacer(Modifier.width(6.dp)); Text("Revoir le trajet")
+                }
+                TextButton(onClick = {
+                    val uri = Places.mapsUri(ObdManager.tripPoints(t))
+                    if (uri == null) ObdManager.toast("Pas de positions GPS pour ce trajet : activez « Tracer les trajets sur une carte ».")
+                    else runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                        .onFailure { ObdManager.toast("Aucune appli de cartes ni navigateur trouvé.") }
+                }, contentPadding = PaddingValues(0.dp)) {
+                    Icon(Icons.Rounded.Map, null); Spacer(Modifier.width(6.dp)); Text("Voir sur Maps")
+                }
             }
             if (t.harshAcc + t.harshBrake > 0) Text("${t.harshAcc} accélération(s) et ${t.harshBrake} freinage(s) brusques · vitesse max ${ObdManager.fmt(t.maxSpeed)} km/h",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

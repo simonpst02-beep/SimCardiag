@@ -188,6 +188,8 @@ class Store(private val context: Context) {
                 maxSpeed = t.getDouble("maxSpeed"), avgSpeed = t.getDouble("avgSpeed"), ecoScore = t.getInt("ecoScore"),
                 harshAcc = t.optInt("harshAcc"), harshBrake = t.optInt("harshBrake"),
                 file = t.optString("file").ifEmpty { null },
+                fromPlace = t.optString("fromPlace").ifEmpty { null },
+                toPlace = t.optString("toPlace").ifEmpty { null },
             )
         }
     }.getOrDefault(emptyList())
@@ -198,7 +200,8 @@ class Store(private val context: Context) {
             a.put(JSONObject().put("id", it.id).put("vehicleId", it.vehicleId).put("start", it.start)
                 .put("durationS", it.durationS).put("distanceKm", it.distanceKm).put("fuelL", it.fuelL)
                 .put("maxSpeed", it.maxSpeed).put("avgSpeed", it.avgSpeed).put("ecoScore", it.ecoScore)
-                .put("harshAcc", it.harshAcc).put("harshBrake", it.harshBrake).put("file", it.file ?: ""))
+                .put("harshAcc", it.harshAcc).put("harshBrake", it.harshBrake).put("file", it.file ?: "")
+                .put("fromPlace", it.fromPlace ?: "").put("toPlace", it.toPlace ?: ""))
         }
         tripsFile.writeText(a.toString())
     }
