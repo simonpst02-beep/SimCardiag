@@ -104,7 +104,9 @@ private fun VehiclesCard(vehicles: List<Vehicle>, active: Vehicle) {
                     Text("${v.fuel.label} · ${ObdManager.fmt(v.odometerKm)} km${v.vin?.let { " · VIN …${it.takeLast(6)}" } ?: ""}",
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                IconButton(onClick = { editing = v }) { Icon(Icons.Rounded.Edit, "Modifier") }
+                FilledTonalButton(onClick = { editing = v }, contentPadding = PaddingValues(horizontal = 12.dp)) {
+                    Icon(Icons.Rounded.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Modifier")
+                }
             }
         }
         TextButton(onClick = { adding = true }) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Ajouter un véhicule") }
