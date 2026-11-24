@@ -391,7 +391,7 @@ private fun CarCard(s: Settings) {
         ChipRow(LayoutMode.entries.map { it to it.label }, s.layoutMode) { m -> ObdManager.updateSettings { it.copy(layoutMode = m) } }
         Text("« Autoradio » remplit tout l'écran avec les widgets. En automatique, il est choisi sur les écrans larges et peu hauts (1024 × 600…).",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        SwitchRow("Boutons musique", "Volume −, lecture/pause et volume + en haut de l'écran et en mode conduite (radio, Spotify, YouTube Music…)", s.mediaButtons) { v ->
+        SwitchRow("Boutons musique", "Volume −, précédent, lecture/pause, suivant et volume + en haut de l'écran et en mode conduite (radio, Spotify, YouTube Music…)", s.mediaButtons) { v ->
             ObdManager.updateSettings { it.copy(mediaButtons = v) }
         }
         SwitchRow("Plein écran", "Masque les barres d'Android (glisser depuis le bord pour les revoir)", s.fullscreen) { v ->

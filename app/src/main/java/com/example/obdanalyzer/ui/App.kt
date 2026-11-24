@@ -204,11 +204,9 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
                 Text(txt, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        if (media) { MediaBar(size = if (wide) 48.dp else 40.dp); Spacer(Modifier.width(8.dp)) }
+        if (media && wide) { MediaBar(size = 48.dp); Spacer(Modifier.width(8.dp)) }
         if (conn == Conn.CONNECTED || conn == Conn.RECONNECTING) {
-            // sur téléphone avec les boutons musique, le bouton Conduite devient une simple icône pour garder la place
-            if (media && !wide) FilledTonalIconButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, "Mode conduite") }
-            else FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
+            FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
             if (!locked) IconButton(onClick = { ask = true }) { Icon(Icons.Rounded.PowerSettingsNew, "Déconnecter") }
         } else if (conn == Conn.CONNECTING) {
             IconButton(onClick = { ObdManager.disconnect() }) { Icon(Icons.Rounded.Close, "Annuler") }
@@ -217,6 +215,8 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
             BadgedBox(badge = { if (updateDot) Badge(containerColor = MaterialTheme.colorScheme.primary) }) { Icon(Icons.Rounded.Settings, "Paramètres") }
         }
     }
+    // téléphone : les boutons musique ont leur propre ligne sous la barre du haut
+    if (media && !wide) MediaBar(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp), size = 44.dp)
     if (ask) AlertDialog(
         onDismissRequest = { ask = false },
         title = { Text("Terminer le trajet ?") },

@@ -17,13 +17,17 @@ object MediaKeys {
         am(ctx)?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
     }
 
-    /** Envoie la touche « lecture/pause » à l'appli qui joue de la musique. */
-    fun playPause(ctx: Context) = runCatching {
+    /** Envoie une touche multimédia à l'appli qui joue de la musique. */
+    private fun key(ctx: Context, code: Int) = runCatching {
         val a = am(ctx) ?: return@runCatching
         val t = SystemClock.uptimeMillis()
-        a.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 0))
-        a.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, 0))
+        a.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_DOWN, code, 0))
+        a.dispatchMediaKeyEvent(KeyEvent(t, t, KeyEvent.ACTION_UP, code, 0))
     }
+
+    fun playPause(ctx: Context) = key(ctx, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
+    fun previous(ctx: Context) = key(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+    fun next(ctx: Context) = key(ctx, KeyEvent.KEYCODE_MEDIA_NEXT)
 
     fun isPlaying(ctx: Context) = am(ctx)?.isMusicActive == true
 }

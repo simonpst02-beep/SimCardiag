@@ -6,6 +6,8 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,18 +18,24 @@ import androidx.compose.ui.unit.dp
 import com.example.obdanalyzer.core.MediaKeys
 import kotlinx.coroutines.delay
 
-/** Volume − / lecture-pause / volume + : gros boutons faciles à toucher en conduisant. */
+/** Volume − / précédent / lecture-pause / suivant / volume + : gros boutons faciles à toucher en conduisant. */
 @Composable
 fun MediaBar(modifier: Modifier = Modifier, size: Dp = 56.dp) {
     val ctx = LocalContext.current
     var playing by remember { mutableStateOf(MediaKeys.isPlaying(ctx)) }
     LaunchedEffect(Unit) { while (true) { playing = MediaKeys.isPlaying(ctx); delay(1000) } }
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(if (size < 48.dp) 6.dp else 10.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         FilledTonalIconButton(onClick = { MediaKeys.volumeDown(ctx) }, Modifier.size(size)) {
             Icon(Icons.AutoMirrored.Rounded.VolumeDown, "Baisser le volume", Modifier.size(size * 0.5f))
         }
+        FilledTonalIconButton(onClick = { MediaKeys.previous(ctx) }, Modifier.size(size)) {
+            Icon(Icons.Rounded.SkipPrevious, "Morceau précédent", Modifier.size(size * 0.5f))
+        }
         FilledIconButton(onClick = { MediaKeys.playPause(ctx); playing = !playing }, Modifier.size(size)) {
             Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pause" else "Lecture", Modifier.size(size * 0.55f))
+        }
+        FilledTonalIconButton(onClick = { MediaKeys.next(ctx) }, Modifier.size(size)) {
+            Icon(Icons.Rounded.SkipNext, "Morceau suivant", Modifier.size(size * 0.5f))
         }
         FilledTonalIconButton(onClick = { MediaKeys.volumeUp(ctx) }, Modifier.size(size)) {
             Icon(Icons.AutoMirrored.Rounded.VolumeUp, "Monter le volume", Modifier.size(size * 0.5f))
