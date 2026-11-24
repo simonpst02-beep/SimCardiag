@@ -320,3 +320,43 @@ fun PerfScreen(l: Live, v: Vehicle, wide: Boolean) {
         }
     }
 }
+
+// ---------------------------------------------------------------- journal technique
+
+/** Bouton qui affiche les derniers échanges avec le boîtier, et permet de les envoyer. */
+@Composable
+fun JournalButton(modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    TextButton(onClick = { open = true }, modifier = modifier) {
+        Icon(Icons.Rounded.Terminal, null); Spacer(Modifier.width(6.dp)); Text("Journal technique")
+    }
+    if (open) {
+        val text = remember { ObdManager.journalText() }
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text("Journal technique") },
+            text = {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    Text("Derniers échanges avec le boîtier. Envoyez-les pour faire analyser un problème de connexion.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.foundation.text.selection.SelectionContainer {
+                        Text(text, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 11.sp, lineHeight = 14.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val i = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "Journal SimCarDiag")
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    ctx.startActivity(Intent.createChooser(i, "Envoyer le journal"))
+                }) { Icon(Icons.Rounded.Share, null); Spacer(Modifier.width(6.dp)); Text("Envoyer") }
+            },
+            dismissButton = { TextButton(onClick = { open = false }) { Text("Fermer") } },
+        )
+    }
+}

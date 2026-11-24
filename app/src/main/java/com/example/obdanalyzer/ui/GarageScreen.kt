@@ -361,6 +361,7 @@ private fun SettingsCard(s: Settings) {
         SwitchRow("Tracer les trajets sur une carte", "Utilise le GPS du téléphone pendant les trajets", s.gps) { v ->
             ObdManager.updateSettings { it.copy(gps = v) }
         }
+        JournalButton()
 
     }
 }

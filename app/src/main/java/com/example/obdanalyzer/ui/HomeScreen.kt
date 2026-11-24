@@ -197,6 +197,7 @@ private fun DeviceCard(l: Live, v: Vehicle) {
             KeyValue("Lecture", if (l.multi) "Groupée (rapide)" else if (l.isStn) "Puce STN" else "Standard")
             KeyValue("Véhicule", v.name)
             l.vin?.let { KeyValue("VIN", it) }
+            JournalButton()
         }
     }
 }
@@ -259,7 +260,7 @@ private fun ConnectPanel(l: Live, wide: Boolean) {
             if (open) Text(l.log.joinToString("\n"), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            l.error?.let { ErrorBox(it) }
+            l.error?.let { ErrorBox(it); JournalButton() }
             if (!btOn) ErrorBox("Le Bluetooth est désactivé. Activez-le puis touchez Actualiser.")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Mes appareils Bluetooth", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))

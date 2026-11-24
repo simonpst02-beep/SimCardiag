@@ -278,7 +278,8 @@ object ObdManager {
                 conn.close()
                 ObdService.stop(ctx)
                 _live.update {
-                    it.copy(conn = Conn.IDLE, error = "Impossible de se connecter à $name. Vérifiez que le contact est mis et que le boîtier est bien branché.")
+                    it.copy(conn = Conn.IDLE, error = e.message?.takeIf { m -> m.startsWith("La voiture") }
+                        ?: "Impossible de se connecter à $name. Vérifiez que le contact est mis et que le boîtier est bien branché.")
                 }
             }
         }
@@ -371,7 +372,7 @@ object ObdManager {
 
                 if (!ok) {
                     fails++
-                    if (fails >= 3) { onConnectionLost(); return@launch }
+                    if (fails >= 5) { conn.note("5 échecs de suite : connexion perdue"); onConnectionLost(); return@launch }
                     continue
                 }
                 fails = 0
@@ -1009,6 +1010,19 @@ object ObdManager {
         _trips.value = emptyList(); _fuel.value = emptyList(); _perf.value = emptyList()
         CarWidget.refresh(ctx)
         return true
+    }
+
+    /** Derniers échanges avec le boîtier, avec un en-tête utile pour un diagnostic à distance. */
+    fun journalText(): String {
+        val l = _live.value
+        val head = listOf(
+            "SimCarDiag ${Updater.currentName(ctx)} · ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} · Android ${android.os.Build.VERSION.RELEASE}",
+            "Boîtier : ${l.device ?: "—"} · état : ${l.conn} · protocole : ${l.protocol.ifEmpty { "—" }} · STN : ${l.isStn} · lecture groupée : ${l.multi}",
+            "Capteurs : ${l.supported.joinToString(" ") { it.code }.ifEmpty { "—" }}",
+            "Véhicule : ${activeVehicle().name} ${activeVehicle().vin ?: ""}",
+            "",
+        )
+        return (head + l.log.map { "[connexion] $it" } + conn.journal()).joinToString("\n")
     }
 
     fun consumeMessage() = _live.update { it.copy(message = null) }
