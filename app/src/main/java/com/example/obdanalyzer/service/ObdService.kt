@@ -34,6 +34,14 @@ class ObdService : Service() {
         private const val CHANNEL = "obd_live"
         private const val ID = 42
         private const val ACTION_STOP = "stop"
+        private const val ACTION_AUTOCONNECT = "autoconnect"
+
+        /** Démarre le service en arrière-plan puis se connecte au dernier boîtier (démarrage de l'autoradio, Bluetooth). */
+        fun autoConnect(context: Context) {
+            runCatching {
+                ContextCompat.startForegroundService(context, Intent(context, ObdService::class.java).setAction(ACTION_AUTOCONNECT))
+            }
+        }
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, ObdService::class.java))
@@ -65,10 +73,17 @@ class ObdService : Service() {
         }
         val locOk = ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) ==
             android.content.pm.PackageManager.PERMISSION_GRANTED
+        // Lancé en arrière-plan (démarrage, Bluetooth) : Android interdit le type « position » dans ce cas
+        val background = intent?.action == ACTION_AUTOCONNECT
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or (if (locOk) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0)
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or (if (locOk && !background) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0)
         } else 0
         ServiceCompat.startForeground(this, ID, build("Connexion au boîtier…"), type)
+        if (intent?.action == ACTION_AUTOCONNECT) {
+            ObdManager.init(this)
+            // Rien à faire (aucun boîtier mémorisé, Bluetooth coupé) : on s'arrête aussitôt
+            if (!ObdManager.autoConnectFromBackground()) { stopSelf(); return START_NOT_STICKY }
+        }
         scope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.cancel() }
         scope.launch {
             val nm = getSystemService(NotificationManager::class.java)

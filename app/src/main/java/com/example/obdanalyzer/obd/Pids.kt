@@ -37,6 +37,11 @@ object Pids {
         p("0F", "iat", "Air d'admission", "°C", -20.0, 80.0, Family.TEMP, 1) { it[0] - 40.0 },
         p("46", "ext", "Temp. extérieure", "°C", -20.0, 45.0, Family.TEMP, 1) { it[0] - 40.0 },
         p("5C", "oil", "Huile moteur", "°C", 40.0, 150.0, Family.TEMP, 1) { it[0] - 40.0 },
+        // Pour fiabiliser la consommation estimée
+        p("03", "fcut", "Coupure injection", "", 0.0, 1.0, Family.ENGINE, 1) { if (it[0] == 4) 1.0 else 0.0 },
+        p("06", "stft", "Correction carburant court terme", "%", -25.0, 25.0, Family.ENGINE, 1) { (it[0] - 128) * 100 / 128.0 },
+        p("07", "ltft", "Correction carburant long terme", "%", -25.0, 25.0, Family.ENGINE, 1) { (it[0] - 128) * 100 / 128.0 },
+        p("44", "lambda", "Richesse demandée (lambda)", "", 0.5, 2.0, Family.ENGINE, 2) { (it[0] * 256 + it[1]) * 2 / 65536.0 },
         p("5E", "fuelrate", "Débit carburant", "L/h", 0.0, 30.0, Family.ENERGY, 2) { (it[0] * 256 + it[1]) / 20.0 },
         // Filtre à particules (diesel récents) : octet A = capteurs présents, puis banc 1
         p("7A", "dpfp", "FAP · pression diff.", "kPa", 0.0, 30.0, Family.TEMP, 7) { (it[1] * 256 + it[2]) / 100.0 },

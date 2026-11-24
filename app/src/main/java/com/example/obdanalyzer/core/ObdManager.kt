@@ -257,6 +257,15 @@ object ObdManager {
         if (_live.value.conn == Conn.IDLE && s.autoReconnect && s.lastDevice != null && bluetoothOn()) connect(s.lastDevice)
     }
 
+    /** Connexion lancée par le démarrage de l'appareil ou la détection Bluetooth. Renvoie false s'il n'y a rien à faire. */
+    fun autoConnectFromBackground(): Boolean {
+        val dev = _settings.value.lastDevice ?: return false
+        if (_live.value.conn != Conn.IDLE) return true
+        if (!bluetoothOn()) return false
+        connect(dev)
+        return true
+    }
+
     @SuppressLint("MissingPermission")
     fun connect(address: String) {
         val a = adapter ?: return
@@ -423,15 +432,62 @@ object ObdManager {
         }
     }
 
+    private var lphSmooth: Double? = null
+    private var consSource = ""
+
+    /**
+     * Débit de carburant en L/h.
+     * 1. La voiture le donne (PID 5E) : rare avant 2015.
+     * 2. Sinon : débit d'air (débitmètre, ou calcul pression × régime × cylindrée) ÷ rapport air/carburant.
+     *    - essence : rapport 14,7 corrigé par la richesse et les corrections d'injection ; 0 en coupure d'injection (décélération) ;
+     *    - diesel : le moteur tourne avec un grand excès d'air (rapport 20 à 80 selon la charge), d'où le calcul selon la charge.
+     *      Utiliser 14,5 comme avant surestimait la consommation de 2 à 4 fois au ralenti.
+     * 3. Le tout est recalé sur vos pleins (facteur du véhicule).
+     */
+    private fun estimateLph(values: Map<String, Double>, v: Vehicle): Double? {
+        values["fuelrate"]?.let { consNote("débit carburant de la voiture"); return it * v.consFactor }
+        if (values["fcut"] == 1.0) return 0.0
+        val rpm = values["rpm"]
+        if (rpm != null && rpm < 300) return 0.0
+        val maf = values["maf"]?.also { consNote("débitmètre d'air") } ?: run {
+            val map = values["map"] ?: return null
+            if (rpm == null) return null
+            val tK = (values["iat"] ?: 25.0) + 273.15
+            val ve = if (v.fuel == Fuel.DIESEL) 0.9 else 0.85
+            consNote("pression d'admission × régime × cylindrée")
+            // g/s = P·V·(tr/min ÷ 120)·rendement ÷ (R·T)
+            map * 1000 * (v.engineL / 1000) * (rpm / 120) * ve / (287.05 * tK) * 1000
+        }
+        val lambda = values["lambda"]
+        val afr: Double
+        var trim = 1.0
+        if (v.fuel == Fuel.DIESEL) {
+            afr = if (lambda != null && lambda in 1.0..1.95) 14.5 * lambda
+            else 18.0 / ((values["load"] ?: 25.0) / 100).coerceIn(0.22, 1.0)
+        } else {
+            afr = if (lambda != null && lambda in 0.6..1.6) 14.7 * lambda else 14.7
+            trim = (1 + ((values["stft"] ?: 0.0) + (values["ltft"] ?: 0.0)) / 100).coerceIn(0.75, 1.25)
+        }
+        return maf / afr * trim * 3600 / v.fuel.densityGPerL * v.consFactor
+    }
+
+    private fun consNote(src: String) {
+        if (src != consSource) { consSource = src; conn.note("Consommation calculée par : $src") }
+    }
+
     private fun compute(values: HashMap<String, Double>, dt: Double) {
         val v = activeVehicle()
         val speed = values["speed"]
         val rpm = values["rpm"]
-        val lph = values["fuelrate"] ?: values["maf"]?.let { it * 3600.0 / (v.fuel.afr * v.fuel.densityGPerL) * v.consFactor }
+        val lph = estimateLph(values, v)
         var unit = "L/100km"
         if (lph != null) {
-            if (speed != null && speed > 10) values["cons"] = lph / speed * 100 else { values["cons"] = lph; unit = "L/h" }
-        }
+            // l'affichage est lissé sur ~3 s pour ne pas sauter à chaque lecture ; le cumul utilise la valeur brute
+            val a = if (dt in 0.0..5.0) dt / (3.0 + dt) else 1.0
+            lphSmooth = lphSmooth?.let { it + a * (lph - it) } ?: lph
+            val shown = lphSmooth!!
+            if (speed != null && speed > 10) values["cons"] = shown / speed * 100 else { values["cons"] = shown; unit = "L/h" }
+        } else lphSmooth = null
         // Carburant restant : jauge de la voiture si elle la transmet, sinon calcul depuis le dernier plein complet
         val left = values["fuel"]?.let { it / 100 * v.tankL } ?: litersSinceFull(v)?.let { (v.tankL - it - fuel).coerceAtLeast(0.0) }
         if (left != null) {
@@ -465,7 +521,8 @@ object ObdManager {
         val newOnes = al.filter { it.id !in activeAlertIds && it.level != Level.OK }
         if (newOnes.isNotEmpty()) {
             val s = _settings.value
-            alerts.play(newOnes.any { it.level == Level.BAD }, s.sound, s.vibration)
+            alerts.play(newOnes.any { it.level == Level.BAD }, s.sound && !s.voiceAlerts, s.vibration)
+            if (s.voiceAlerts) alerts.speak(newOnes.sortedBy { if (it.level == Level.BAD) 0 else 1 }.first().text)
         }
         activeAlertIds = al.map { it.id }.toSet()
 
@@ -943,7 +1000,7 @@ object ObdManager {
 
     /**
      * Ajuste l'estimation de consommation de l'appli sur la consommation réelle mesurée entre deux pleins complets.
-     * Le facteur reste entre 0,7 et 1,4 pour écarter les erreurs de saisie.
+     * Le facteur reste entre 0,4 et 2,5 pour écarter les erreurs de saisie.
      */
     private fun calibrate(vehicleId: String) {
         val fills = _fuel.value.filter { it.vehicleId == vehicleId }.sortedBy { it.date }
@@ -955,7 +1012,7 @@ object ObdManager {
         if (realL <= 0 || estL < 5) return
         val v = _vehicles.value.firstOrNull { it.id == vehicleId } ?: return
         // les trajets ont été estimés avec l'ancien facteur : on corrige de façon cumulative
-        val f = (v.consFactor * realL / estL).coerceIn(0.7, 1.4)
+        val f = (v.consFactor * realL / estL).coerceIn(0.4, 2.5)
         updateVehicle(vehicleId) { it.copy(consFactor = f) }
         _live.update { it.copy(message = "Consommation recalée sur vos pleins (×${"%.2f".format(f)})") }
     }
@@ -976,9 +1033,21 @@ object ObdManager {
 
     fun exportBackup(): String = store.exportAll()
 
-    fun importBackup(json: String): Boolean {
+    /** Fichier de synchronisation reçu d'un autre appareil, en attente du choix Fusionner / Remplacer. */
+    private val _pendingImport = MutableStateFlow<String?>(null)
+    val pendingImport: StateFlow<String?> = _pendingImport.asStateFlow()
+    fun offerImport(json: String?) { _pendingImport.value = json?.takeIf { it.contains("simcardiag-backup") } }
+
+    /** Fichier à envoyer vers l'autre appareil (Bluetooth, Quick Share, mail, Drive…). */
+    fun syncFile(): java.io.File {
+        val dir = java.io.File(ctx.cacheDir, "updates").apply { mkdirs() }
+        return java.io.File(dir, "simcardiag-synchro.json").apply { writeText(exportBackup()) }
+    }
+
+    fun importBackup(json: String, merge: Boolean = false): Boolean {
         if (_live.value.conn != Conn.IDLE) return false
-        if (!store.importAll(json)) return false
+        _pendingImport.value = null
+        if (!(if (merge) store.mergeAll(json) else store.importAll(json))) return false
         _settings.value = store.loadSettings()
         _vehicles.value = store.loadVehicles().ifEmpty { _vehicles.value }
         _trips.value = store.loadTrips()
@@ -1026,6 +1095,7 @@ object ObdManager {
     }
 
     fun consumeMessage() = _live.update { it.copy(message = null) }
+    fun toast(text: String) = _live.update { it.copy(message = text) }
     fun clearError() = _live.update { it.copy(error = null) }
 
     fun fmt(v: Double): String =

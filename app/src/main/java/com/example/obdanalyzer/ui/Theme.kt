@@ -18,6 +18,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -63,10 +65,16 @@ private val LightScheme = lightColorScheme(
 
 @Composable
 fun AppTheme(mode: ThemeMode, accent: Accent = Accent.BLUE, content: @Composable () -> Unit) {
+    // Thème nuit automatique : l'heure est relue chaque minute
+    var hour by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) }
+    if (mode == ThemeMode.AUTO_HOURS) androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) { kotlinx.coroutines.delay(60_000); hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    }
     val dark = when (mode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
+        ThemeMode.AUTO_HOURS -> hour >= 19 || hour < 7
     }
     val base = Color(accent.argb)
     // En clair, la couleur d'accent est assombrie pour rester lisible sur fond blanc

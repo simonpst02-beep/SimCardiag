@@ -7,7 +7,8 @@ enum class Fuel(val label: String, val afr: Double, val densityGPerL: Double) {
     DIESEL("Diesel", 14.5, 832.0),
 }
 
-enum class ThemeMode(val label: String) { SYSTEM("Comme le téléphone"), LIGHT("Clair"), DARK("Sombre") }
+enum class ThemeMode(val label: String) { SYSTEM("Comme le téléphone"), LIGHT("Clair"), DARK("Sombre"), AUTO_HOURS("Nuit de 19 h à 7 h") }
+enum class LayoutMode(val label: String) { AUTO("Automatique"), PHONE("Téléphone"), TABLET("Tablette"), CAR("Autoradio") }
 enum class Orientation(val label: String) { AUTO("Automatique"), PORTRAIT("Portrait"), LANDSCAPE("Paysage") }
 enum class PollRate(val label: String, val delayMs: Long) { ECO("Économie de batterie", 250), NORMAL("Normale", 60), FAST("Rapide", 0) }
 enum class ConsUnit(val label: String) { L100("L/100 km"), KML("km/L") }
@@ -74,6 +75,8 @@ data class Vehicle(
     val lastAvgCons: Double? = null,
     /** Correction de la consommation estimée, calculée à partir du carnet de carburant (1 = aucune). */
     val consFactor: Double = 1.0,
+    /** Cylindrée en litres : sert à estimer le débit d'air quand la voiture n'a pas de débitmètre. */
+    val engineL: Double = 1.4,
 )
 
 data class TripSummary(
@@ -136,6 +139,15 @@ data class Settings(
     // Carburant & données
     val fuelPrice: Double = 1.85,
     val keepTripsDays: Int = 0,           // 0 = illimité
+    // Autoradio
+    val autoStartBoot: Boolean = false,       // ouvrir l'appli au démarrage de l'appareil
+    val autoConnectBt: Boolean = true,        // se connecter quand le boîtier apparaît en Bluetooth
+    val fullscreen: Boolean = false,          // masquer les barres d'Android
+    val layoutMode: LayoutMode = LayoutMode.AUTO,
+    // Sécurité
+    val voiceAlerts: Boolean = false,
+    val shiftLight: Boolean = true,
+    val drivingLock: Boolean = true,
     // Mises à jour
     val autoUpdateCheck: Boolean = true,
     val githubToken: String = "",         // seulement si le dépôt GitHub est privé

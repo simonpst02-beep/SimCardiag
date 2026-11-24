@@ -171,6 +171,13 @@ fun ColumnScope.WidgetContent(w: WidgetCfg, l: Live, v: Vehicle, onTab: (Int) ->
             Text("Moyenne ${ObdManager.fmt(s.avgSpeed)} km/h · Max ${ObdManager.fmt(s.maxSpeed)} km/h · Carburant ${"%.2f".format(s.fuelL)} L (≈ ${"%.2f".format(s.fuelL * ObdManager.settings.value.fuelPrice)} €)",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        "shift" -> {
+            val lim = ObdManager.settings.value.rpmLimit
+            WidgetTitle(Icons.Rounded.Speed, LocalObd.current.engine, "Passage de vitesse")
+            ShiftLight(l.values["rpm"], lim, Modifier.fillMaxWidth(), height = 28.dp, leds = 12)
+            Text("${l.values["rpm"]?.let { ObdManager.fmt(it) } ?: "—"} tr/min · clignote à $lim tr/min",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         "eco" -> {
             val s = l.stats
             val c = when { s.eco >= 70 -> LocalObd.current.ok; s.eco >= 50 -> LocalObd.current.warn; else -> LocalObd.current.bad }
@@ -240,6 +247,7 @@ fun BigStat(value: String, label: String, modifier: Modifier = Modifier) {
 private val SPECIAL = listOf(
     Triple("stats", "Bilan du trajet", Icons.Rounded.Map),
     Triple("eco", "Éco-conduite", Icons.Rounded.Eco),
+    Triple("shift", "Témoin de passage", Icons.Rounded.Speed),
     Triple("dtc", "Codes défaut", Icons.Rounded.Build),
     Triple("rec", "Enregistrement CSV", Icons.Rounded.FiberManualRecord),
 )

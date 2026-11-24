@@ -20,6 +20,7 @@ import com.example.obdanalyzer.core.MaintItem
 import com.example.obdanalyzer.core.ObdManager
 import com.example.obdanalyzer.core.Settings
 import com.example.obdanalyzer.core.ThemeMode
+import com.example.obdanalyzer.core.LayoutMode
 import com.example.obdanalyzer.core.Accent
 import com.example.obdanalyzer.core.Wallpaper
 import com.example.obdanalyzer.core.Orientation
@@ -68,7 +69,7 @@ fun SettingsScreen(s: Settings, wide: Boolean, onBack: () -> Unit) {
         }
         Box(Modifier.weight(1f)) {
             TwoColumns(wide,
-                left = { AppearanceCard(s); DrivingCard(s); SettingsCard(s) },
+                left = { AppearanceCard(s); CarCard(s); DrivingCard(s); SettingsCard(s) },
                 right = { UpdatesCard(s); AlertsCard(s); DriveModeCard(s); DataCard(s); BackupCard(); AboutCard() })
         }
     }
@@ -120,6 +121,7 @@ private fun VehicleDialog(v: Vehicle?, canDelete: Boolean, onDismiss: () -> Unit
     var fuel by remember { mutableStateOf(v?.fuel ?: Fuel.ESSENCE) }
     var tank by remember { mutableStateOf(v?.tankL?.roundToInt()?.toString() ?: "50") }
     var odo by remember { mutableStateOf(v?.odometerKm?.roundToInt()?.toString() ?: "0") }
+    var cc by remember { mutableStateOf(v?.engineL?.toString()?.replace('.', ',') ?: "1,4") }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (v == null) "Nouveau véhicule" else "Modifier le véhicule") },
@@ -131,6 +133,9 @@ private fun VehicleDialog(v: Vehicle?, canDelete: Boolean, onDismiss: () -> Unit
                 }
                 OutlinedTextField(tank, { tank = it.filter(Char::isDigit) }, label = { Text("Réservoir (litres)") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+                OutlinedTextField(cc, { cc = it.filter { c -> c.isDigit() || c == ',' || c == '.' } }, label = { Text("Cylindrée (litres)") }, singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    supportingText = { Text("Ex. 1,3 pour une Corsa 1.3 CDTI, 2,0 pour un D2") })
                 OutlinedTextField(odo, { odo = it.filter(Char::isDigit) }, label = { Text("Kilométrage au compteur") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     supportingText = { Text("Mis à jour automatiquement après chaque trajet") })
@@ -143,12 +148,13 @@ private fun VehicleDialog(v: Vehicle?, canDelete: Boolean, onDismiss: () -> Unit
             TextButton(enabled = name.isNotBlank(), onClick = {
                 val t = tank.toDoubleOrNull() ?: 50.0
                 val o = odo.toDoubleOrNull() ?: 0.0
+                val e = cc.replace(',', '.').toDoubleOrNull()?.coerceIn(0.6, 7.0) ?: 1.4
                 if (v == null) {
                     val nv = ObdManager.addVehicle(name.trim(), fuel)
-                    ObdManager.updateVehicle(nv.id) { it.copy(tankL = t, odometerKm = o, maintenance = it.maintenance.map { m -> m.copy(lastKm = o) }) }
+                    ObdManager.updateVehicle(nv.id) { it.copy(tankL = t, odometerKm = o, engineL = e, maintenance = it.maintenance.map { m -> m.copy(lastKm = o) }) }
                     ObdManager.selectVehicle(nv.id)
                 } else {
-                    ObdManager.updateVehicle(v.id) { it.copy(name = name.trim(), fuel = fuel, tankL = t, odometerKm = o) }
+                    ObdManager.updateVehicle(v.id) { it.copy(name = name.trim(), fuel = fuel, tankL = t, odometerKm = o, engineL = e) }
                 }
                 onDismiss()
             }) { Text("Enregistrer") }
@@ -328,6 +334,15 @@ private fun AlertsCard(s: Settings) {
     SectionCard(Icons.Rounded.NotificationsActive, LocalObd.current.bad, "Alertes") {
         SwitchRow("Son", "Bip quand une alerte apparaît", s.sound) { v -> ObdManager.updateSettings { it.copy(sound = v) } }
         SwitchRow("Vibration", "Le téléphone vibre en cas d'alerte", s.vibration) { v -> ObdManager.updateSettings { it.copy(vibration = v) } }
+        SwitchRow("Alertes vocales", "Une voix lit l'alerte (« Température moteur élevée »…) au lieu du bip", s.voiceAlerts) { v ->
+            ObdManager.updateSettings { it.copy(voiceAlerts = v) }
+        }
+        SwitchRow("Témoin de passage de vitesse", "Rangée de voyants en mode conduite, qui clignote au régime d'alerte", s.shiftLight) { v ->
+            ObdManager.updateSettings { it.copy(shiftLight = v) }
+        }
+        SwitchRow("Limiter les commandes en roulant", "Au-dessus de 10 km/h : seul l'accueil reste accessible, pas de personnalisation ni de réglages", s.drivingLock) { v ->
+            ObdManager.updateSettings { it.copy(drivingLock = v) }
+        }
         Text("Alerte régime : ${s.rpmLimit} tr/min", fontWeight = FontWeight.SemiBold)
         Slider(value = s.rpmLimit.toFloat(), onValueChange = { v -> ObdManager.updateSettings { it.copy(rpmLimit = (v / 250).roundToInt() * 250) } },
             valueRange = 3000f..7000f, steps = 15)
@@ -363,6 +378,40 @@ private fun SettingsCard(s: Settings) {
         }
         JournalButton()
 
+    }
+}
+
+@Composable
+private fun CarCard(s: Settings) {
+    val ctx = LocalContext.current
+    var overlayOk by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(ctx)) }
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) { overlayOk = android.provider.Settings.canDrawOverlays(ctx); onPauseOrDispose { } }
+    SectionCard(Icons.Rounded.DirectionsCar, LocalObd.current.speed, "Autoradio") {
+        Text("Disposition de l'accueil", fontWeight = FontWeight.SemiBold)
+        ChipRow(LayoutMode.entries.map { it to it.label }, s.layoutMode) { m -> ObdManager.updateSettings { it.copy(layoutMode = m) } }
+        Text("« Autoradio » remplit tout l'écran avec les widgets. En automatique, il est choisi sur les écrans larges et peu hauts (1024 × 600…).",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SwitchRow("Plein écran", "Masque les barres d'Android (glisser depuis le bord pour les revoir)", s.fullscreen) { v ->
+            ObdManager.updateSettings { it.copy(fullscreen = v) }
+        }
+        SwitchRow("Démarrer avec l'appareil", "Ouvre l'appli et se connecte au boîtier quand l'autoradio s'allume", s.autoStartBoot) { v ->
+            ObdManager.updateSettings { it.copy(autoStartBoot = v) }
+        }
+        if (s.autoStartBoot && !overlayOk) {
+            Text("Pour que l'appli puisse s'ouvrir seule, Android demande l'autorisation « Afficher par-dessus les autres applis ».",
+                style = MaterialTheme.typography.bodySmall, color = LocalObd.current.warn)
+            OutlinedButton(onClick = {
+                runCatching {
+                    ctx.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:" + ctx.packageName)))
+                }
+            }) { Text("Donner l'autorisation") }
+        }
+        SwitchRow("Connexion dès que le boîtier est détecté", "Lance la connexion OBD quand le boîtier mémorisé se connecte en Bluetooth", s.autoConnectBt) { v ->
+            ObdManager.updateSettings { it.copy(autoConnectBt = v) }
+        }
+        Text("Certains autoradios coupent l'alimentation sans vraiment éteindre Android : dans ce cas l'appli se reconnecte au réveil grâce à la reconnexion automatique.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -415,12 +464,29 @@ private fun BackupCard() {
             if (ObdManager.importBackup(txt)) "Données restaurées." else "Fichier non reconnu, ou boîtier encore connecté."
         }.getOrElse { "Échec de la restauration : ${it.message}" }
     }
+    val merge = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) msg = runCatching {
+            val txt = ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+            if (ObdManager.importBackup(txt, merge = true)) "Données fusionnées." else "Fichier non reconnu, ou boîtier encore connecté."
+        }.getOrElse { "Échec de la fusion : ${it.message}" }
+    }
     SectionCard(Icons.Rounded.Backup, MaterialTheme.colorScheme.primary, "Sauvegarde et autres appareils") {
         Text("Enregistrez vos véhicules, trajets, pleins et réglages dans un fichier (Drive, mail…), puis restaurez-le sur la tablette ou un nouveau téléphone.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(onClick = { save.launch("simcardiag-sauvegarde.json") }) { Text("Sauvegarder") }
             OutlinedButton(onClick = { load.launch(arrayOf("application/json", "*/*")) }, enabled = ObdManager.live.value.conn == Conn.IDLE) { Text("Restaurer") }
+        }
+        Text("Synchroniser téléphone ↔ autoradio", fontWeight = FontWeight.SemiBold)
+        Text("Envoyez vos données à l'autre appareil (Bluetooth, Quick Share, mail…). Là-bas, ouvrez le fichier avec SimCarDiag et choisissez « Fusionner » : " +
+            "les trajets et pleins des deux appareils sont réunis, les réglages de chacun sont conservés.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(onClick = {
+                runCatching { shareFile(ctx, ObdManager.syncFile(), "application/json", "Envoyer vers l'autre appareil") }
+                    .onFailure { msg = "Envoi impossible : ${it.message}" }
+            }) { Icon(Icons.Rounded.Share, null); Spacer(Modifier.width(6.dp)); Text("Envoyer") }
+            OutlinedButton(onClick = { merge.launch(arrayOf("application/json", "*/*")) }, enabled = ObdManager.live.value.conn == Conn.IDLE) { Text("Fusionner un fichier") }
         }
         msg?.let { Text(it, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold) }
         ReportButton()

@@ -33,9 +33,24 @@ import com.example.obdanalyzer.core.Vehicle
 import com.example.obdanalyzer.core.WidgetCfg
 
 @Composable
-fun HomeScreen(l: Live, v: Vehicle, wide: Boolean, onTab: (Int) -> Unit) {
+fun HomeScreen(l: Live, v: Vehicle, wide: Boolean, car: Boolean = false, locked: Boolean = false, onTab: (Int) -> Unit) {
     if (l.conn == Conn.IDLE || l.conn == Conn.CONNECTING) {
         ConnectPanel(l, wide)
+        return
+    }
+    var carEdit by rememberSaveable { mutableStateOf(false) }
+    if (locked) carEdit = false
+    if (car && !carEdit) {
+        CarDashboard(l, v, locked, onTab) { carEdit = true }
+        return
+    }
+    if (car) {
+        Column(Modifier.fillMaxSize()) {
+            TextButton(onClick = { carEdit = false }, Modifier.padding(start = 8.dp)) {
+                Icon(Icons.Rounded.ChevronLeft, null); Text("Retour à l'affichage autoradio")
+            }
+            Box(Modifier.weight(1f)) { Dashboard(l, v, cols = 4, wide = true, locked = false, onTab = onTab, header = null) }
+        }
         return
     }
     if (wide) {
@@ -47,18 +62,86 @@ fun HomeScreen(l: Live, v: Vehicle, wide: Boolean, onTab: (Int) -> Unit) {
                 HealthCard(l, v, onTab)
                 DeviceCard(l, v)
             }
-            Dashboard(l, v, cols = 4, wide = true, onTab = onTab, header = null)
+            Dashboard(l, v, cols = 4, wide = true, locked = locked, onTab = onTab, header = null)
         }
     } else {
-        Dashboard(l, v, cols = 2, wide = false, onTab = onTab, header = { HealthCard(l, v, onTab) })
+        Dashboard(l, v, cols = 2, wide = false, locked = locked, onTab = onTab, header = { HealthCard(l, v, onTab) })
+    }
+}
+
+/**
+ * Affichage autoradio (écran large et peu haut, ex. 1024 × 600) : les widgets remplissent toute la hauteur,
+ * sans zone vide en bas. Lignes de 4 cases (un widget large en prend 2) ; au-delà de 3 lignes, on fait défiler.
+ */
+@Composable
+private fun CarDashboard(l: Live, v: Vehicle, locked: Boolean, onTab: (Int) -> Unit, onEdit: () -> Unit) {
+    val rows = remember(v.layout) {
+        val out = mutableListOf<MutableList<WidgetCfg>>()
+        var used = 4
+        for (w in v.layout) {
+            val span = if (w.wide) 2 else 1
+            if (used + span > 4) { out += mutableListOf<WidgetCfg>(); used = 0 }
+            out.last() += w; used += span
+        }
+        out
+    }
+    BoxWithConstraints(Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp)) {
+        val gap = 10.dp
+        val bar = 40.dp
+        val n = rows.size.coerceAtLeast(1)
+        val shownRows = minOf(n, 3)
+        val rowH = ((maxHeight - bar - gap * shownRows) / shownRows).coerceAtLeast(120.dp)
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(gap)) {
+            Row(Modifier.fillMaxWidth().height(bar), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CarHealthChip(l, v, Modifier.weight(1f)) { onTab(1) }
+                if (!locked) FilledTonalButton(onClick = onEdit) { Icon(Icons.Rounded.Tune, null); Spacer(Modifier.width(6.dp)); Text("Personnaliser") }
+            }
+            if (rows.isEmpty()) EmptyState(Icons.Rounded.Dashboard, MaterialTheme.colorScheme.primary, "Aucun widget", "Touchez Personnaliser pour en ajouter.")
+            rows.forEach { row ->
+                Row(Modifier.fillMaxWidth().height(rowH), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    var used = 0
+                    row.forEach { w ->
+                        val span = if (w.wide) 2 else 1
+                        used += span
+                        Card(Modifier.weight(span.toFloat()).fillMaxHeight(), shape = CardShape,
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                            Column(Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically)) {
+                                WidgetContent(w, l, v, onTab)
+                            }
+                        }
+                    }
+                    if (used < 4) Spacer(Modifier.weight((4 - used).toFloat()))
+                }
+            }
+        }
+    }
+}
+
+/** Bandeau d'état compact pour l'autoradio : alertes ou « tout va bien ». */
+@Composable
+private fun CarHealthChip(l: Live, v: Vehicle, modifier: Modifier, onClick: () -> Unit) {
+    val alert = l.alerts.firstOrNull { it.level != Level.OK }
+    val dtc = l.dtcs?.size ?: 0
+    val (txt, c) = when {
+        alert != null -> alert.text to levelColor(alert.level)
+        dtc > 0 -> "$dtc code(s) défaut : touchez pour voir" to LocalObd.current.warn
+        else -> "Tout va bien · ${v.name}" to LocalObd.current.ok
+    }
+    Surface(onClick = onClick, modifier = modifier.fillMaxHeight(), shape = RoundedCornerShape(50), color = c.copy(alpha = 0.18f)) {
+        Row(Modifier.padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(c))
+            Text(txt, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        }
     }
 }
 
 // ---------------------------------------------------------------- tableau de bord
 
 @Composable
-private fun Dashboard(l: Live, v: Vehicle, cols: Int, wide: Boolean, onTab: (Int) -> Unit, header: (@Composable () -> Unit)?) {
+private fun Dashboard(l: Live, v: Vehicle, cols: Int, wide: Boolean, locked: Boolean, onTab: (Int) -> Unit, header: (@Composable () -> Unit)?) {
     var edit by rememberSaveable { mutableStateOf(false) }
+    if (locked) edit = false
     var adding by remember { mutableStateOf(false) }
     val layout = v.layout
     fun save(list: List<WidgetCfg>) = ObdManager.updateActive { it.copy(layout = list, preset = "Personnalisé") }
@@ -77,7 +160,7 @@ private fun Dashboard(l: Live, v: Vehicle, cols: Int, wide: Boolean, onTab: (Int
                     Text(if (edit) "Personnaliser" else "Mon tableau de bord", style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     if (edit) Button(onClick = { edit = false }) { Icon(Icons.Rounded.Check, null); Spacer(Modifier.width(6.dp)); Text("Terminé") }
-                    else FilledTonalButton(onClick = { edit = true }) { Icon(Icons.Rounded.Tune, null); Spacer(Modifier.width(6.dp)); Text("Personnaliser") }
+                    else if (!locked) FilledTonalButton(onClick = { edit = true }) { Icon(Icons.Rounded.Tune, null); Spacer(Modifier.width(6.dp)); Text("Personnaliser") }
                 }
                 AnimatedVisibility(edit) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -107,7 +190,10 @@ private fun Dashboard(l: Live, v: Vehicle, cols: Int, wide: Boolean, onTab: (Int
         }
         item(span = { GridItemSpan(maxLineSpan) }) {
             Text(
-                if (v.layout.any { it.metric == "cons" } && l.values["fuelrate"] == null) "* consommation estimée à partir du débit d'air (${v.fuel.label.lowercase()})" else "",
+                if (v.layout.any { it.metric == "cons" } && l.values["fuelrate"] == null)
+                    "* consommation estimée (${v.fuel.label.lowercase()}, ${ObdManager.fmt(v.engineL)} L)" +
+                        (if (v.consFactor != 1.0) ", recalée sur vos pleins ×${"%.2f".format(v.consFactor)}" else " : faites 2 pleins complets pour la recaler")
+                else "",
                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }

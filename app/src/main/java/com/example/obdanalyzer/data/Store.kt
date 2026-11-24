@@ -15,6 +15,7 @@ import com.example.obdanalyzer.core.ConsUnit
 import com.example.obdanalyzer.core.TempUnit
 import com.example.obdanalyzer.core.Wallpaper
 import com.example.obdanalyzer.core.Accent
+import com.example.obdanalyzer.core.LayoutMode
 import com.example.obdanalyzer.core.TripSummary
 import com.example.obdanalyzer.core.Vehicle
 import com.example.obdanalyzer.core.WidgetCfg
@@ -62,6 +63,13 @@ class Store(private val context: Context) {
             fuelPrice = o.optDouble("fuelPrice", 1.85),
             keepTripsDays = o.optInt("keepTripsDays", 0),
             autoUpdateCheck = o.optBoolean("autoUpdateCheck", true),
+            autoStartBoot = o.optBoolean("autoStartBoot", false),
+            autoConnectBt = o.optBoolean("autoConnectBt", true),
+            fullscreen = o.optBoolean("fullscreen", false),
+            layoutMode = enumOr(o.optString("layoutMode"), LayoutMode.AUTO),
+            voiceAlerts = o.optBoolean("voiceAlerts", false),
+            shiftLight = o.optBoolean("shiftLight", true),
+            drivingLock = o.optBoolean("drivingLock", true),
             githubToken = o.optString("githubToken", ""),
         )
     }.getOrDefault(Settings())
@@ -78,6 +86,9 @@ class Store(private val context: Context) {
             .put("reserveKm", s.reserveKm).put("batteryLowV", s.batteryLowV).put("breakMinutes", s.breakMinutes)
             .put("fuelPrice", s.fuelPrice).put("keepTripsDays", s.keepTripsDays)
             .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
+            .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)
+            .put("layoutMode", s.layoutMode.name).put("voiceAlerts", s.voiceAlerts).put("shiftLight", s.shiftLight)
+            .put("drivingLock", s.drivingLock)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 
@@ -97,7 +108,7 @@ class Store(private val context: Context) {
     private fun vehicleTo(v: Vehicle) = JSONObject()
         .put("id", v.id).put("name", v.name).put("vin", v.vin ?: "").put("fuel", v.fuel.name)
         .put("tankL", v.tankL).put("odometerKm", v.odometerKm).put("preset", v.preset)
-        .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor)
+        .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor).put("engineL", v.engineL)
         .put("layout", JSONArray().apply { v.layout.forEach { put(JSONObject().put("k", it.kind).put("m", it.metric ?: "").put("w", it.wide)) } })
         .put("maintenance", JSONArray().apply {
             v.maintenance.forEach {
@@ -150,6 +161,7 @@ class Store(private val context: Context) {
             lastFuelPct = o.optDouble("lastFuelPct", -1.0).takeIf { it >= 0 },
             lastAvgCons = o.optDouble("lastAvgCons", -1.0).takeIf { it >= 0 },
             consFactor = o.optDouble("consFactor", 1.0),
+            engineL = o.optDouble("engineL", 1.4),
         )
         return if (layout != null) base.copy(layout = layout) else base
     }
@@ -274,6 +286,43 @@ class Store(private val context: Context) {
         tripsFile.writeText(o.optString("trips", "[]"))
         fuelFile.writeText(o.optString("fuel", "[]"))
         perfFile.writeText(o.optString("perf", "[]"))
+        true
+    }.getOrDefault(false)
+
+    /**
+     * Fusionne une sauvegarde venant d'un autre appareil (téléphone ↔ autoradio) : on garde tout ce qui est ici
+     * et on ajoute ce qui manque (trajets, pleins, chronos, véhicules), sans toucher aux réglages de cet appareil.
+     * Pour un même véhicule, on garde le plus grand kilométrage et on ajoute les mesures perso absentes.
+     */
+    fun mergeAll(json: String): Boolean = runCatching {
+        val o = JSONObject(json)
+        if (o.optString("format") != "simcardiag-backup") return false
+        fun union(local: String, other: String, keep: (JSONObject, JSONObject) -> JSONObject = { a, _ -> a }): String {
+            val a = JSONArray(local); val b = JSONArray(other)
+            val byId = LinkedHashMap<String, JSONObject>()
+            for (i in 0 until a.length()) a.getJSONObject(i).let { byId[it.optString("id")] = it }
+            for (i in 0 until b.length()) b.getJSONObject(i).let { x ->
+                val id = x.optString("id")
+                byId[id] = byId[id]?.let { keep(it, x) } ?: x
+            }
+            return JSONArray(byId.values.toList()).toString()
+        }
+        val vehicles = union(prefs.getString("vehicles", "[]")!!, o.getString("vehicles")) { mine, other ->
+            if (other.optDouble("odometerKm", 0.0) > mine.optDouble("odometerKm", 0.0)) mine.put("odometerKm", other.optDouble("odometerKm"))
+            val mp = mine.optJSONArray("customPids") ?: JSONArray()
+            val names = (0 until mp.length()).map { mp.getJSONObject(it).optString("command") + mp.getJSONObject(it).optString("formula") }.toSet()
+            other.optJSONArray("customPids")?.let { op ->
+                for (i in 0 until op.length()) op.getJSONObject(i).let { p ->
+                    if (p.optString("command") + p.optString("formula") !in names) mp.put(p)
+                }
+            }
+            mine.put("customPids", mp)
+        }
+        fun local(f: File) = if (f.exists()) f.readText() else "[]"
+        prefs.edit().putString("vehicles", vehicles).apply()
+        tripsFile.writeText(union(local(tripsFile), o.optString("trips", "[]")))
+        fuelFile.writeText(union(local(fuelFile), o.optString("fuel", "[]")))
+        perfFile.writeText(union(local(perfFile), o.optString("perf", "[]")))
         true
     }.getOrDefault(false)
 

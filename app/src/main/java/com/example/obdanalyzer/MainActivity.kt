@@ -4,6 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,6 +21,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import com.example.obdanalyzer.core.ObdManager
 import com.example.obdanalyzer.ui.AppTheme
 import com.example.obdanalyzer.ui.ObdRoot
@@ -28,6 +37,44 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent { PermissionGate { ObdRoot() } }
+        handleIncoming(intent)
+        // Plein écran (autoradio) : barres d'Android masquées, un glissement depuis le bord les fait réapparaître
+        lifecycleScope.launch {
+            ObdManager.settings.map { it.fullscreen }.distinctUntilChanged().collect { full ->
+                val c = WindowCompat.getInsetsController(window, window.decorView)
+                if (full) {
+                    c.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    c.hide(WindowInsetsCompat.Type.systemBars())
+                } else c.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIncoming(intent)
+    }
+
+    /** Fichier de synchronisation ouvert ou partagé vers SimCarDiag depuis un autre appareil. */
+    private fun handleIncoming(i: Intent?) {
+        val uri: Uri = when (i?.action) {
+            Intent.ACTION_VIEW -> i.data
+            Intent.ACTION_SEND -> if (Build.VERSION.SDK_INT >= 33) i.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+                else @Suppress("DEPRECATION") i.getParcelableExtra(Intent.EXTRA_STREAM)
+            else -> null
+        } ?: return
+        val txt = runCatching { contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) } }.getOrNull()
+        if (txt == null || !txt.contains("simcardiag-backup")) {
+            ObdManager.toast("Ce fichier n'est pas une sauvegarde SimCarDiag.")
+            return
+        }
+        ObdManager.offerImport(txt)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus && ObdManager.settings.value.fullscreen)
+            WindowCompat.getInsetsController(window, window.decorView).hide(WindowInsetsCompat.Type.systemBars())
     }
 }
 

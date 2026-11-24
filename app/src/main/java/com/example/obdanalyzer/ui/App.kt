@@ -18,6 +18,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.obdanalyzer.core.Conn
 import com.example.obdanalyzer.core.ObdManager
 import com.example.obdanalyzer.core.Orientation
+import com.example.obdanalyzer.core.LayoutMode
 import com.example.obdanalyzer.core.Updater
 import android.app.Activity
 import android.content.pm.ActivityInfo
@@ -78,6 +79,38 @@ fun ObdRoot() {
             if (speed < 5) autoArmed = true
         }
 
+        // Verrouillage en roulant : seuls l'accueil et le mode conduite restent accessibles
+        val locked = s.drivingLock && connected && speed > 10
+        LaunchedEffect(locked) { if (locked) { tab = 0; settingsOpen = false } }
+
+        val incoming by ObdManager.pendingImport.collectAsStateWithLifecycle()
+        incoming?.let { json ->
+            AlertDialog(
+                onDismissRequest = { ObdManager.offerImport(null) },
+                title = { Text("Données reçues d'un autre appareil") },
+                text = {
+                    Text(if (l.conn != Conn.IDLE) "Déconnectez d'abord le boîtier, puis rouvrez le fichier."
+                    else "Fusionner : ajoute les trajets, pleins et véhicules reçus à ceux de cet appareil, en gardant vos réglages.\n\n" +
+                        "Remplacer : efface les données de cet appareil et les remplace par celles reçues.")
+                },
+                confirmButton = {
+                    TextButton(enabled = l.conn == Conn.IDLE, onClick = {
+                        val ok = ObdManager.importBackup(json, merge = true)
+                        ObdManager.toast(if (ok) "Données fusionnées." else "Fichier non reconnu.")
+                    }) { Text("Fusionner") }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = { ObdManager.offerImport(null) }) { Text("Annuler") }
+                        TextButton(enabled = l.conn == Conn.IDLE, onClick = {
+                            val ok = ObdManager.importBackup(json, merge = false)
+                            ObdManager.toast(if (ok) "Données remplacées." else "Fichier non reconnu.")
+                        }) { Text("Remplacer", color = LocalObd.current.bad) }
+                    }
+                },
+            )
+        }
+
         Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             if (drive) {
                 DriveMode(l, v, s) { drive = false }
@@ -91,13 +124,15 @@ fun ObdRoot() {
             }
             WallpaperLayer(s.wallpaper)
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                val wide = maxWidth >= 700.dp
+                val autoCar = maxWidth >= 700.dp && maxHeight < 700.dp && maxWidth > maxHeight
+                val car = when (s.layoutMode) { LayoutMode.CAR -> true; LayoutMode.AUTO -> autoCar; else -> false }
+                val wide = when (s.layoutMode) { LayoutMode.PHONE -> false; LayoutMode.TABLET, LayoutMode.CAR -> true; LayoutMode.AUTO -> maxWidth >= 700.dp }
                 val content: @Composable (Modifier) -> Unit = { m ->
                     Column(m.fillMaxSize()) {
-                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, onDrive = { drive = true }, onSettings = { settingsOpen = true })
+                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, locked, onDrive = { drive = true }, onSettings = { settingsOpen = true })
                         Box(Modifier.weight(1f)) {
                             when (tab) {
-                                0 -> HomeScreen(l, v, wide) { tab = it }
+                                0 -> HomeScreen(l, v, wide, car, locked) { if (!locked) tab = it }
                                 1 -> DiagScreen(l, wide)
                                 2 -> TripsScreen(trips, v, l, wide)
                                 else -> GarageScreen(vehicles, v, s, l.stats.distanceKm, wide)
@@ -110,7 +145,7 @@ fun ObdRoot() {
                         NavigationRail(containerColor = Color.Transparent) {
                             Spacer(Modifier.height(12.dp))
                             TABS.forEachIndexed { i, t ->
-                                NavigationRailItem(selected = tab == i, onClick = { tab = i },
+                                NavigationRailItem(selected = tab == i, onClick = { tab = i }, enabled = !locked || i == 0,
                                     icon = { TabIcon(t, i == 1 && !l.dtcs.isNullOrEmpty()) }, label = { Text(t.label) })
                             }
                         }
@@ -122,7 +157,7 @@ fun ObdRoot() {
                         bottomBar = {
                             NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                                 TABS.forEachIndexed { i, t ->
-                                    NavigationBarItem(selected = tab == i, onClick = { tab = i },
+                                    NavigationBarItem(selected = tab == i, onClick = { tab = i }, enabled = !locked || i == 0,
                                         icon = { TabIcon(t, i == 1 && !l.dtcs.isNullOrEmpty()) }, label = { Text(t.label) })
                                 }
                             }
@@ -144,7 +179,7 @@ private fun TabIcon(t: Tab, dot: Boolean) {
 
 @Composable
 private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, device: String?, wide: Boolean, updateDot: Boolean,
-                   onDrive: () -> Unit, onSettings: () -> Unit) {
+                   locked: Boolean, onDrive: () -> Unit, onSettings: () -> Unit) {
     val obd = LocalObd.current
     var ask by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = if (wide) 8.dp else 4.dp, bottom = 4.dp),
@@ -158,6 +193,7 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
                     val t = (now - recStart) / 1000
                     "Enregistrement · ${t / 60}:${"%02d".format(t % 60)}" to obd.bad
                 }
+                locked -> "En roulant : commandes limitées" to obd.ok
                 conn == Conn.CONNECTED -> "Connecté · ${device ?: "OBD"}" to obd.ok
                 conn == Conn.RECONNECTING -> "Reconnexion en cours…" to obd.warn
                 conn == Conn.CONNECTING -> "Connexion…" to obd.warn
@@ -170,11 +206,11 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
         }
         if (conn == Conn.CONNECTED || conn == Conn.RECONNECTING) {
             FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
-            IconButton(onClick = { ask = true }) { Icon(Icons.Rounded.PowerSettingsNew, "Déconnecter") }
+            if (!locked) IconButton(onClick = { ask = true }) { Icon(Icons.Rounded.PowerSettingsNew, "Déconnecter") }
         } else if (conn == Conn.CONNECTING) {
             IconButton(onClick = { ObdManager.disconnect() }) { Icon(Icons.Rounded.Close, "Annuler") }
         }
-        IconButton(onClick = onSettings) {
+        IconButton(onClick = onSettings, enabled = !locked) {
             BadgedBox(badge = { if (updateDot) Badge(containerColor = MaterialTheme.colorScheme.primary) }) { Icon(Icons.Rounded.Settings, "Paramètres") }
         }
     }
