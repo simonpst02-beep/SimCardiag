@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import com.example.obdanalyzer.core.Vehicle
+import com.example.obdanalyzer.core.WidgetCfg
+import com.example.obdanalyzer.core.Presets
 import com.example.obdanalyzer.core.status
 import com.example.obdanalyzer.obd.Expr
 import com.example.obdanalyzer.obd.TorqueImport
@@ -69,7 +71,7 @@ fun SettingsScreen(s: Settings, wide: Boolean, onBack: () -> Unit) {
         }
         Box(Modifier.weight(1f)) {
             TwoColumns(wide,
-                left = { AppearanceCard(s); CarCard(s); DrivingCard(s); SettingsCard(s) },
+                left = { AppearanceCard(s); DashboardCard(wide); CarCard(s); DrivingCard(s); SettingsCard(s) },
                 right = { UpdatesCard(s); AlertsCard(s); DriveModeCard(s); DataCard(s); BackupCard(); AboutCard() })
         }
     }
@@ -392,6 +394,60 @@ private fun SettingsCard(s: Settings) {
         JournalButton()
 
     }
+}
+
+private val SPECIAL_NAMES = mapOf("stats" to "Bilan du trajet", "eco" to "Éco-conduite", "dtc" to "Codes défaut",
+    "rec" to "Enregistrement CSV", "shift" to "Témoin de passage")
+private val KIND_NAMES = mapOf("val" to "Valeur", "gauge" to "Jauge", "chart" to "Courbe")
+
+/** Modifier le tableau de bord de l'accueil depuis les réglages : modèle, ordre, taille, ajout et retrait des widgets. */
+@Composable
+private fun DashboardCard(wide: Boolean) {
+    val vehicles by ObdManager.vehicles.collectAsStateWithLifecycle()
+    val st by ObdManager.settings.collectAsStateWithLifecycle()
+    val v = vehicles.firstOrNull { it.id == st.activeVehicleId } ?: vehicles.firstOrNull() ?: return
+    val layout = v.layout
+    var adding by remember { mutableStateOf(false) }
+    fun save(list: List<WidgetCfg>) = ObdManager.updateActive { it.copy(layout = list, preset = "Personnalisé") }
+    SectionCard(Icons.Rounded.Dashboard, MaterialTheme.colorScheme.primary, "Tableau de bord · ${v.name}") {
+        Text("Partir d'un modèle", fontWeight = FontWeight.SemiBold)
+        ChipRow(Presets.ALL.keys.map { it to it }, v.preset) { name -> ObdManager.updateActive { it.copy(layout = Presets.get(name), preset = name) } }
+        Text("Widgets affichés (dans l'ordre)", fontWeight = FontWeight.SemiBold)
+        if (layout.isEmpty()) Text("Aucun widget : l'accueil est vide.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        layout.forEachIndexed { i, w ->
+            val def = ObdManager.metric(w.metric)
+            val name = def?.name ?: SPECIAL_NAMES[w.kind] ?: w.kind
+            val sub = buildString {
+                KIND_NAMES[w.kind]?.let { append(it); append(" · ") }
+                append(if (w.wide) "large" else "petit")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(name, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(sub, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                IconButton(onClick = { save(layout.toMutableList().apply { add(i - 1, removeAt(i)) }) }, enabled = i > 0) {
+                    Icon(Icons.Rounded.KeyboardArrowUp, "Monter")
+                }
+                IconButton(onClick = { save(layout.toMutableList().apply { add(i + 1, removeAt(i)) }) }, enabled = i < layout.size - 1) {
+                    Icon(Icons.Rounded.KeyboardArrowDown, "Descendre")
+                }
+                if (w.kind == "val" || w.kind == "gauge") IconButton(onClick = { save(layout.toMutableList().apply { set(i, w.copy(wide = !w.wide)) }) }) {
+                    Icon(Icons.Rounded.SwapHoriz, "Changer la taille")
+                }
+                IconButton(onClick = { save(layout.toMutableList().apply { removeAt(i) }) }) {
+                    Icon(Icons.Rounded.Close, "Retirer", tint = LocalObd.current.bad)
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(onClick = { adding = true }) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(6.dp)); Text("Ajouter un widget") }
+            TextButton(onClick = { ObdManager.updateActive { it.copy(layout = Presets.get(Presets.DEFAULT), preset = Presets.DEFAULT) } }) { Text("Réinitialiser") }
+        }
+        Text("Chaque véhicule a son propre tableau de bord. Les changements s'appliquent tout de suite à l'accueil.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (adding) AddWidgetSheet(layout, wide, onAdd = { save(layout + it); adding = false }, onDismiss = { adding = false })
 }
 
 @Composable
