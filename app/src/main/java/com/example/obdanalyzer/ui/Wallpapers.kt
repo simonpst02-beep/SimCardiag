@@ -29,6 +29,53 @@ fun WallpaperLayer(w: Wallpaper, modifier: Modifier = Modifier.fillMaxSize()) {
     val ink = if (dark) Color.White else Color.Black
     Canvas(modifier) {
         when (w) {
+            Wallpaper.CARBON_RED, Wallpaper.CARBON_GREEN -> {
+                // Fond noir carbone, plus marqué que « Fibre de carbone »
+                drawRect(Color(0xFF07080A).copy(alpha = if (dark) 0.85f else 0.0f))
+                val c = 12f
+                val a = Color.White.copy(alpha = if (dark) 0.065f else 0.05f)
+                val b = Color.White.copy(alpha = if (dark) 0.025f else 0.02f)
+                var yy = 0f; var row = 0
+                while (yy < size.height) {
+                    var x = 0f; var col = 0
+                    while (x < size.width) {
+                        val hz = (row + col) % 2 == 0
+                        drawRect(if (hz) a else b, Offset(x, yy), Size(c, c * 0.92f))
+                        drawRect(if (hz) b else a, Offset(x + c, yy), Size(c * 0.92f, c))
+                        x += 2 * c; col++
+                    }
+                    yy += c; row++
+                }
+                val W = size.width; val H = size.height
+                if (w == Wallpaper.CARBON_RED) {
+                    // Livrée sport : deux lames rouges en biais à droite, un coin rouge en bas, un filet fin
+                    val red = Color(0xFFE10600)
+                    fun blade(x0: Float, wd: Float, alpha: Float) = drawPath(Path().apply {
+                        moveTo(W * x0, 0f); lineTo(W * (x0 + wd), 0f); lineTo(W * (x0 + wd - 0.32f), H); lineTo(W * (x0 - 0.32f), H); close()
+                    }, Brush.verticalGradient(listOf(red.copy(alpha = alpha), red.copy(alpha = alpha * 0.25f))))
+                    blade(0.86f, 0.07f, 0.55f)
+                    blade(0.96f, 0.03f, 0.40f)
+                    drawPath(Path().apply { moveTo(0f, H); lineTo(W * 0.34f, H); lineTo(0f, H * 0.80f); close() }, red.copy(alpha = 0.35f))
+                    drawLine(red.copy(alpha = 0.5f), Offset(0f, H * 0.78f), Offset(W * 0.36f, H), 2f)
+                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, red.copy(alpha = 0.08f))))
+                } else {
+                    // Néon vert : traits anguleux lumineux en biais (halo + trait net)
+                    val green = Color(0xFF39FF14)
+                    fun slash(x0: Float, y0: Float, x1: Float, y1: Float, wd: Float) {
+                        drawLine(green.copy(alpha = 0.10f), Offset(W * x0, H * y0), Offset(W * x1, H * y1), wd * 4f, StrokeCap.Round)
+                        drawLine(green.copy(alpha = 0.55f), Offset(W * x0, H * y0), Offset(W * x1, H * y1), wd, StrokeCap.Round)
+                    }
+                    slash(0.70f, -0.02f, 0.98f, 0.36f, 6f)
+                    slash(0.78f, -0.02f, 1.02f, 0.30f, 3f)
+                    // éclair en zigzag en bas à gauche
+                    val z = Path().apply {
+                        moveTo(W * 0.02f, H * 0.70f); lineTo(W * 0.20f, H * 0.80f); lineTo(W * 0.12f, H * 0.84f); lineTo(W * 0.34f, H * 1.0f)
+                    }
+                    drawPath(z, green.copy(alpha = 0.12f), style = Stroke(16f, cap = StrokeCap.Round))
+                    drawPath(z, green.copy(alpha = 0.6f), style = Stroke(3f, cap = StrokeCap.Round))
+                    drawRect(Brush.verticalGradient(listOf(Color.Transparent, green.copy(alpha = 0.07f))))
+                }
+            }
             Wallpaper.CARBON -> {
                 // Tissage de fibre de carbone : petits rectangles alternés
                 val c = 14f

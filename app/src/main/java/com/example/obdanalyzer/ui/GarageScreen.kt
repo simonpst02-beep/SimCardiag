@@ -605,7 +605,16 @@ private fun AppearanceCard(s: Settings) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Wallpaper.entries.forEach { w ->
                 val sel = s.wallpaper == w
-                Column(Modifier.width(76.dp).clickable { ObdManager.updateSettings { it.copy(wallpaper = w) } },
+                Column(Modifier.width(76.dp).clickable {
+                    // les fonds carbone sportifs vont avec un thème sombre et leur couleur
+                    ObdManager.updateSettings {
+                        when (w) {
+                            Wallpaper.CARBON_RED -> it.copy(wallpaper = w, accent = Accent.RED, theme = ThemeMode.DARK)
+                            Wallpaper.CARBON_GREEN -> it.copy(wallpaper = w, accent = Accent.NEON, theme = ThemeMode.DARK)
+                            else -> it.copy(wallpaper = w)
+                        }
+                    }
+                },
                     horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Box(Modifier.fillMaxWidth().aspectRatio(0.62f).clip(RoundedCornerShape(14.dp))
                         .background(MaterialTheme.colorScheme.background)
