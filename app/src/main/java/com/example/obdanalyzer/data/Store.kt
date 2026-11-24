@@ -70,6 +70,7 @@ class Store(private val context: Context) {
             voiceAlerts = o.optBoolean("voiceAlerts", false),
             shiftLight = o.optBoolean("shiftLight", true),
             drivingLock = o.optBoolean("drivingLock", true),
+            mediaButtons = o.optBoolean("mediaButtons", false),
             githubToken = o.optString("githubToken", ""),
         )
     }.getOrDefault(Settings())
@@ -88,7 +89,7 @@ class Store(private val context: Context) {
             .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
             .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)
             .put("layoutMode", s.layoutMode.name).put("voiceAlerts", s.voiceAlerts).put("shiftLight", s.shiftLight)
-            .put("drivingLock", s.drivingLock)
+            .put("drivingLock", s.drivingLock).put("mediaButtons", s.mediaButtons)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 

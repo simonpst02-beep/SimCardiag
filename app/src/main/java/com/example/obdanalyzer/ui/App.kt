@@ -129,7 +129,7 @@ fun ObdRoot() {
                 val wide = when (s.layoutMode) { LayoutMode.PHONE -> false; LayoutMode.TABLET, LayoutMode.CAR -> true; LayoutMode.AUTO -> maxWidth >= 700.dp }
                 val content: @Composable (Modifier) -> Unit = { m ->
                     Column(m.fillMaxSize()) {
-                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, locked, onDrive = { drive = true }, onSettings = { settingsOpen = true })
+                        TopBar(l.conn, l.recording, l.recStart, v.name, l.device, wide, upd.available, locked, s.mediaButtons, onDrive = { drive = true }, onSettings = { settingsOpen = true })
                         Box(Modifier.weight(1f)) {
                             when (tab) {
                                 0 -> HomeScreen(l, v, wide, car, locked) { if (!locked) tab = it }
@@ -179,7 +179,7 @@ private fun TabIcon(t: Tab, dot: Boolean) {
 
 @Composable
 private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, device: String?, wide: Boolean, updateDot: Boolean,
-                   locked: Boolean, onDrive: () -> Unit, onSettings: () -> Unit) {
+                   locked: Boolean, media: Boolean, onDrive: () -> Unit, onSettings: () -> Unit) {
     val obd = LocalObd.current
     var ask by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = if (wide) 8.dp else 4.dp, bottom = 4.dp),
@@ -204,6 +204,7 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
                 Text(txt, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        if (media) { MediaBar(size = if (wide) 48.dp else 40.dp); Spacer(Modifier.width(8.dp)) }
         if (conn == Conn.CONNECTED || conn == Conn.RECONNECTING) {
             FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
             if (!locked) IconButton(onClick = { ask = true }) { Icon(Icons.Rounded.PowerSettingsNew, "Déconnecter") }
