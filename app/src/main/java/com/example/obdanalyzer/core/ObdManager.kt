@@ -356,9 +356,49 @@ object ObdManager {
         series.clear(); lastSeriesT = 0L
         perfTimer.reset()
         knownDtcs = null; lastDtcCheck = System.currentTimeMillis()
-        if (_settings.value.gps || _settings.value.gpsDistance || _settings.value.gpsCorrect) gps.start()
+        if (_settings.value.gps || _settings.value.gpsDistance || _settings.value.gpsCorrect || _settings.value.dangerZones) gps.start()
+        if (_settings.value.dangerZones) scope.launch { DangerZones.load(ctx) }
+        DangerZones.reset(); inZone = false; lastZoneCheck = 0L
         lastGpsKm = 0.0; cmpObdKm = 0.0; cmpGpsKm = 0.0
         activeAlertIds = emptySet()
+    }
+
+    // ---------------------------------------------------------------- batterie au démarrage
+
+    private val voltWindow = ArrayDeque<Pair<Long, Double>>()
+    private var crankWatch = false
+    private var wasOff = false
+
+    /**
+     * Pendant que le moteur est coupé, on garde les tensions des 8 dernières secondes.
+     * Quand le moteur démarre, la plus basse est la tension au démarreur : sous 9,6 V la batterie est fatiguée.
+     */
+    private fun watchCrank(values: Map<String, Double>, now: Long) {
+        val rpm = values["rpm"] ?: 0.0
+        values["volt"]?.let { voltWindow.addLast(now to it) }
+        while (voltWindow.isNotEmpty() && now - voltWindow.first().first > 8000) voltWindow.removeFirst()
+        if (rpm < 300) { wasOff = true; crankWatch = true; return }
+        if (wasOff && rpm > 400) {
+            wasOff = false
+            val min = voltWindow.minOfOrNull { it.second }
+            crankWatch = false
+            if (min != null && min > 5 && min < 12.4) {
+                val v = activeVehicle()
+                updateVehicle(v.id) { it.copy(crankHistory = (it.crankHistory + min).takeLast(10), lastCrankAt = now) }
+                val s = _settings.value
+                val (msg, severe) = when {
+                    min < 9.6 -> "Batterie faible au démarrage (${"%.1f".format(min)} V) : faites-la tester, elle risque de lâcher par temps froid." to true
+                    min < 10.0 -> "Batterie un peu juste au démarrage (${"%.1f".format(min)} V). À surveiller." to false
+                    else -> "Démarrage : ${"%.1f".format(min)} V, batterie en bonne forme." to false
+                }
+                _live.update { it.copy(message = msg) }
+                if (min < 10.0) {
+                    alerts.play(severe, s.sound && !s.voiceAlerts, s.vibration)
+                    if (s.voiceAlerts) alerts.speak(if (severe) "Batterie faible au démarrage" else "Batterie un peu juste au démarrage")
+                }
+            }
+        }
+        if (rpm > 400) crankWatch = false
     }
 
     // ---------------------------------------------------------------- lecture en boucle
@@ -374,7 +414,9 @@ object ObdManager {
                 val values = HashMap<String, Double>()
                 val ok = try {
                     readStandard(values)
-                    if (loop % 10 == 0) ObdParser.parseVoltage(conn.send("ATRV"))?.let { values["volt"] = it }
+                    // moteur arrêté, contact mis : tension lue à chaque tour pour saisir la chute au démarreur
+                    val engineOff = (values["rpm"] ?: 0.0) < 300
+                    if (loop % 10 == 0 || engineOff || crankWatch) ObdParser.parseVoltage(conn.send("ATRV"))?.let { values["volt"] = it }
                     else _live.value.values["volt"]?.let { values["volt"] = it }
                     if (loop % 4 == 0) readCustom(values)
                     else activeVehicle().customPids.forEach { c -> _live.value.values[c.key]?.let { values[c.key] = it } }
@@ -395,6 +437,7 @@ object ObdManager {
                 val now = System.currentTimeMillis()
                 val dt = (now - last) / 1000.0
                 last = now
+                watchCrank(values, now)
                 compute(values, dt)
                 delay(when (_settings.value.pollRate) {
                     PollRate.ECO -> 250L
@@ -583,9 +626,17 @@ object ObdManager {
         }
     }
 
+    private var inZone = false
+    private var lastZoneCheck = 0L
+
     private fun buildAlerts(values: Map<String, Double>): List<Alert> {
         val s = _settings.value
         val a = mutableListOf<Alert>()
+        if (s.dangerZones) {
+            val now = System.currentTimeMillis()
+            if (now - lastZoneCheck > 2000) { lastZoneCheck = now; inZone = gps.fresh()?.let { DangerZones.check(it) } ?: false }
+            if (inZone) a += Alert("zone", Level.WARN, "Zone de danger : respectez les limitations, soyez prudent.")
+        } else inZone = false
         val rpm = values["rpm"] ?: 0.0
         values["cool"]?.let { if (it >= s.tempLimit) a += Alert("cool", Level.BAD, "Le moteur chauffe trop (${it.toInt()} °C). Arrêtez-vous dès que possible et laissez refroidir avant de vérifier le liquide.") }
         values["oil"]?.let { if (it >= 135) a += Alert("oil", Level.BAD, "Huile moteur très chaude (${it.toInt()} °C). Levez le pied.") }
@@ -712,6 +763,9 @@ object ObdManager {
         val lastFuel = _live.value.values["fuel"]
         val avg = _live.value.stats.avgConsumption
         if (lastFuel != null || avg != null) updateActive { it.copy(lastFuelPct = lastFuel ?: it.lastFuelPct, lastAvgCons = avg ?: it.lastAvgCons) }
+        // Retrouver ma voiture : dernière position GPS connue
+        (gps.last ?: series.lastOrNull { it.lat != null }?.let { p -> android.location.Location("").apply { latitude = p.lat!!; longitude = p.lon!!; time = System.currentTimeMillis() } })
+            ?.let { loc -> updateActive { it.copy(parkLat = loc.latitude, parkLon = loc.longitude, parkAt = System.currentTimeMillis()) } }
         series.clear()
         gps.stop()
         recFile = null

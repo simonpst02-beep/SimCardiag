@@ -89,6 +89,7 @@ fun BatteryScreen(l: Live, wide: Boolean) {
     }
     val b by ObdManager.battery.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        CrankHistoryCard(ObdManager.activeVehicle())
         SectionCard(Icons.Rounded.BatteryFull, obd.battery, "Test batterie et démarreur") {
             Text("1. Moteur coupé, contact mis, phares et clim éteints.\n2. Lancez le test, puis démarrez le moteur quand l'appli le demande.\n3. Laissez tourner au ralenti quelques secondes.",
                 style = MaterialTheme.typography.bodyMedium)
@@ -226,6 +227,7 @@ fun FuelScreen(v: Vehicle, wide: Boolean) {
     var level by remember { mutableStateOf(false) }
     if (level) FuelLevelDialog(v) { level = false }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        FuelPricesCard(v)
         SectionCard(Icons.Rounded.LocalGasStation, obd.energy, "Carnet de carburant") {
             OutlinedButton(onClick = { level = true }) { Icon(Icons.Rounded.Tune, null); Spacer(Modifier.width(6.dp)); Text("Indiquer le niveau du réservoir") }
             Row(Modifier.fillMaxWidth()) {
@@ -280,7 +282,7 @@ private fun monthLabel(m: String): String = runCatching {
 private fun FuelDialog(v: Vehicle, onDismiss: () -> Unit) {
     val odoNow = (v.odometerKm + ObdManager.live.value.stats.distanceKm).toInt()
     var liters by remember { mutableStateOf("") }
-    var price by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf(String.format(Locale.FRANCE, "%.3f", ObdManager.settings.value.fuelPrice)) }
     var odo by remember { mutableStateOf(odoNow.toString()) }
     var full by remember { mutableStateOf(true) }
     fun num(s: String) = s.replace(',', '.').toDoubleOrNull()

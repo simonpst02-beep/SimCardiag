@@ -355,6 +355,8 @@ private fun ConnectPanel(l: Live, wide: Boolean) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             l.error?.let { ErrorBox(it); JournalButton() }
+            val parked by ObdManager.vehicles.collectAsState()
+            parked.firstOrNull { it.id == ObdManager.settings.value.activeVehicleId }?.let { ParkCard(it) }
             if (!btOn) ErrorBox("Le Bluetooth est désactivé. Activez-le puis touchez Actualiser.")
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Mes appareils Bluetooth", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))

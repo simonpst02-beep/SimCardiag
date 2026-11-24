@@ -7,6 +7,7 @@ class ObdApp : Application() {
     override fun onCreate() {
         super.onCreate()
         ObdManager.init(this)
+        runCatching { com.example.obdanalyzer.work.MaintWorker.schedule(this) }
         // Fond de carte OpenStreetMap
         org.osmdroid.config.Configuration.getInstance().apply {
             userAgentValue = packageName

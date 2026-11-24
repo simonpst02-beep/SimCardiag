@@ -111,6 +111,34 @@ object ReportPdf {
         return f
     }
 
+    /** Note de frais : les trajets d'un mois, avec distance, carburant et coût estimé. */
+    fun expenses(context: Context, v: Vehicle, monthLabel: String, trips: List<TripSummary>, pricePerL: Double): File {
+        val doc = PdfDocument()
+        val w = Writer(doc)
+        val df = SimpleDateFormat("EEE d MMM HH:mm", Locale.FRANCE)
+        w.title("Relevé des trajets · $monthLabel")
+        w.small("${v.name}${v.vin?.let { " · VIN $it" } ?: ""} · établi le ${SimpleDateFormat("d MMMM yyyy", Locale.FRANCE).format(Date())} avec SimCarDiag")
+        w.gap(10)
+        val widths = floatArrayOf(110f, 215f, 55f, 55f, 64f)
+        w.row(listOf("Date", "Trajet", "km", "Litres", "Coût"), widths, bold = true)
+        trips.sortedBy { it.start }.forEach { t ->
+            w.row(listOf(df.format(Date(t.start)), t.route ?: "—", "%.1f".format(Locale.FRANCE, t.distanceKm),
+                "%.2f".format(Locale.FRANCE, t.fuelL), "%.2f €".format(Locale.FRANCE, t.cost(pricePerL))), widths)
+        }
+        w.gap(6)
+        w.row(listOf("Total", "${trips.size} trajet(s)", "%.1f".format(Locale.FRANCE, trips.sumOf { it.distanceKm }),
+            "%.2f".format(Locale.FRANCE, trips.sumOf { it.fuelL }), "%.2f €".format(Locale.FRANCE, trips.sumOf { it.cost(pricePerL) })), widths, bold = true)
+        w.gap(14)
+        w.small("Distances mesurées par la vitesse du véhicule (prise OBD). Carburant estimé par l'appli et coût calculé à %.3f €/L.".format(Locale.FRANCE, pricePerL) +
+            " Pour des indemnités kilométriques, appliquez le barème fiscal en vigueur à la distance totale.")
+        w.finish()
+        val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "logs").apply { mkdirs() }
+        val f = File(dir, "trajets_${monthLabel.replace(' ', '_')}.pdf")
+        f.outputStream().use { doc.writeTo(it) }
+        doc.close()
+        return f
+    }
+
     private class Writer(val doc: PdfDocument) {
         private var pageNo = 0
         private var page: PdfDocument.Page? = null
@@ -164,5 +192,18 @@ object ReportPdf {
             smallP.textSize = 9f
         }
         fun finish() { page?.let { doc.finishPage(it) }; page = null }
+
+        /** Une ligne de tableau ; le texte trop long est coupé avec « … ». */
+        fun row(cells: List<String>, widths: FloatArray, bold: Boolean = false) {
+            need(16f); y += 15f
+            val p = if (bold) this.bold else body
+            var x = M.toFloat()
+            cells.forEachIndexed { i, c ->
+                var s = c
+                while (s.length > 1 && p.measureText(s) > widths[i] - 6) s = s.dropLast(2) + "…"
+                page!!.canvas.drawText(s, x, y, p)
+                x += widths[i]
+            }
+        }
     }
 }

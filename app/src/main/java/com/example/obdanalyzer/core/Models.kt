@@ -84,6 +84,13 @@ data class Vehicle(
     val speedFactor: Double = 1.0,
     /** km de mesure qui ont servi à calculer ce rapport (fiable à partir de 10 km). */
     val speedSampleKm: Double = 0.0,
+    /** Tension la plus basse pendant les derniers démarrages (V), la plus récente en dernier. */
+    val crankHistory: List<Double> = emptyList(),
+    val lastCrankAt: Long = 0,
+    /** Où la voiture a été garée (fin du dernier trajet avec GPS). */
+    val parkLat: Double? = null,
+    val parkLon: Double? = null,
+    val parkAt: Long = 0,
 )
 
 data class TripSummary(
@@ -166,7 +173,9 @@ data class Settings(
     val showHealth: Boolean = true,           // carte « État du véhicule » sur l'accueil
     // GPS
     val gpsDistance: Boolean = true,          // compter les km avec le GPS quand la voiture ne donne pas sa vitesse
-    val gpsCorrect: Boolean = false,          // corriger la vitesse, les km et la consommation avec l'écart compteur / GPS
+    val gpsCorrect: Boolean = false,
+    val dangerZones: Boolean = false,         // annonce des zones de danger (radars fixes, sans position exacte)
+    val maintNotif: Boolean = true,           // rappels d'entretien par notification          // corriger la vitesse, les km et la consommation avec l'écart compteur / GPS
     val mediaButtons: Boolean = false,
     val spotifyButton: Boolean = false,       // raccourci Spotify, indépendant des boutons musique
     // Mises à jour

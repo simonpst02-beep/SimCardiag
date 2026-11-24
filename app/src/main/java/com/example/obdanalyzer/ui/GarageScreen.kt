@@ -344,6 +344,23 @@ private fun AlertsCard(s: Settings) {
         SwitchRow("Témoin de passage de vitesse", "Rangée de voyants en mode conduite, qui clignote au régime d'alerte", s.shiftLight) { v ->
             ObdManager.updateSettings { it.copy(shiftLight = v) }
         }
+        SwitchRow("Zones de danger", "Annonce les zones de radars fixes (300 m en ville, 2 km sur route, 4 km sur autoroute), sans leur position exacte, comme Coyote ou Waze. Besoin du GPS ; liste officielle téléchargée une fois par mois.", s.dangerZones) { v ->
+            ObdManager.updateSettings { it.copy(dangerZones = v) }
+        }
+        if (s.dangerZones) {
+            val ctxZ = LocalContext.current
+            val scopeZ = rememberCoroutineScope()
+            var zn by remember { mutableIntStateOf(com.example.obdanalyzer.core.DangerZones.count()) }
+            LaunchedEffect(Unit) { zn = com.example.obdanalyzer.core.DangerZones.load(ctxZ) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (zn > 0) "$zn zones chargées" else "Liste pas encore téléchargée (internet nécessaire)",
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = { scopeZ.launch { zn = com.example.obdanalyzer.core.DangerZones.load(ctxZ, force = true) } }) { Text("Mettre à jour") }
+            }
+        }
+        SwitchRow("Rappels d'entretien par notification", "Une fois par jour, même appli fermée : vidange, contrôle technique, assurance…", s.maintNotif) { v ->
+            ObdManager.updateSettings { it.copy(maintNotif = v) }
+        }
         SwitchRow("Limiter les commandes en roulant", "Au-dessus de 10 km/h : seul l'accueil reste accessible, pas de personnalisation ni de réglages", s.drivingLock) { v ->
             ObdManager.updateSettings { it.copy(drivingLock = v) }
         }

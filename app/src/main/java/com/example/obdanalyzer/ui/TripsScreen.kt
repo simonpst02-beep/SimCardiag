@@ -44,7 +44,7 @@ fun TripsScreen(trips: List<TripSummary>, v: Vehicle, l: Live, wide: Boolean) {
     replay?.let { t -> ReplayScreen(t, wide) { replay = null }; return }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Trajets" to Icons.Rounded.Map, "Carburant" to Icons.Rounded.LocalGasStation, "Performances" to Icons.Rounded.Timer).forEachIndexed { i, (n, ic) ->
+            listOf("Trajets" to Icons.Rounded.Map, "Carburant" to Icons.Rounded.LocalGasStation, "Performances" to Icons.Rounded.Timer, "Statistiques" to Icons.Rounded.BarChart).forEachIndexed { i, (n, ic) ->
                 FilterChip(selected = sub == i, onClick = { sub = i }, label = { Text(n) }, leadingIcon = { Icon(ic, null, Modifier.size(18.dp)) })
             }
         }
@@ -52,7 +52,8 @@ fun TripsScreen(trips: List<TripSummary>, v: Vehicle, l: Live, wide: Boolean) {
             when (sub) {
                 0 -> TripList(trips, v, wide) { replay = it }
                 1 -> FuelScreen(v, wide)
-                else -> PerfScreen(l, v, wide)
+                2 -> PerfScreen(l, v, wide)
+                else -> StatsScreen(trips, v)
             }
         }
     }

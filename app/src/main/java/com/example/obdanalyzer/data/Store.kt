@@ -73,6 +73,8 @@ class Store(private val context: Context) {
             gpsDistance = o.optBoolean("gpsDistance", true),
             showHealth = o.optBoolean("showHealth", true),
             gpsCorrect = o.optBoolean("gpsCorrect", false),
+            dangerZones = o.optBoolean("dangerZones", false),
+            maintNotif = o.optBoolean("maintNotif", true),
             mediaButtons = o.optBoolean("mediaButtons", false),
             spotifyButton = o.optBoolean("spotifyButton", false),
             githubToken = o.optString("githubToken", ""),
@@ -93,7 +95,7 @@ class Store(private val context: Context) {
             .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
             .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)
             .put("layoutMode", s.layoutMode.name).put("voiceAlerts", s.voiceAlerts).put("shiftLight", s.shiftLight)
-            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("showHealth", s.showHealth).put("gpsCorrect", s.gpsCorrect).put("mediaButtons", s.mediaButtons).put("spotifyButton", s.spotifyButton)
+            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("showHealth", s.showHealth).put("gpsCorrect", s.gpsCorrect).put("dangerZones", s.dangerZones).put("maintNotif", s.maintNotif).put("mediaButtons", s.mediaButtons).put("spotifyButton", s.spotifyButton)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 
@@ -114,6 +116,8 @@ class Store(private val context: Context) {
         .put("id", v.id).put("name", v.name).put("vin", v.vin ?: "").put("fuel", v.fuel.name)
         .put("tankL", v.tankL).put("odometerKm", v.odometerKm).put("preset", v.preset)
         .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor).put("engineL", v.engineL).put("fuelRefL", v.fuelRefL ?: -1.0).put("fuelRefAt", v.fuelRefAt).put("speedFactor", v.speedFactor).put("speedSampleKm", v.speedSampleKm)
+        .put("crankHistory", JSONArray(v.crankHistory)).put("lastCrankAt", v.lastCrankAt)
+        .put("parkLat", v.parkLat ?: 999.0).put("parkLon", v.parkLon ?: 999.0).put("parkAt", v.parkAt)
         .put("layout", JSONArray().apply { v.layout.forEach { put(JSONObject().put("k", it.kind).put("m", it.metric ?: "").put("w", it.wide)) } })
         .put("maintenance", JSONArray().apply {
             v.maintenance.forEach {
@@ -171,6 +175,11 @@ class Store(private val context: Context) {
             fuelRefAt = o.optLong("fuelRefAt", 0),
             speedFactor = o.optDouble("speedFactor", 1.0),
             speedSampleKm = o.optDouble("speedSampleKm", 0.0),
+            crankHistory = o.optJSONArray("crankHistory")?.let { a -> (0 until a.length()).map { a.getDouble(it) } } ?: emptyList(),
+            lastCrankAt = o.optLong("lastCrankAt", 0),
+            parkLat = o.optDouble("parkLat", 999.0).takeIf { it < 900 },
+            parkLon = o.optDouble("parkLon", 999.0).takeIf { it < 900 },
+            parkAt = o.optLong("parkAt", 0),
         )
         return if (layout != null) base.copy(layout = layout) else base
     }
