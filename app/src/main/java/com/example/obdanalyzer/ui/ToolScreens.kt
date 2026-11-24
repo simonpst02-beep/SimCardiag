@@ -188,7 +188,6 @@ fun DpfScreen(l: Live, wide: Boolean) {
 
 // ---------------------------------------------------------------- carnet de carburant
 
-@Composable
 /** Indiquer le niveau de la jauge à la main (voitures qui ne transmettent pas leur jauge, comme la Corsa D). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
