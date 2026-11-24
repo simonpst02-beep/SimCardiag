@@ -206,7 +206,9 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
         }
         if (media) { MediaBar(size = if (wide) 48.dp else 40.dp); Spacer(Modifier.width(8.dp)) }
         if (conn == Conn.CONNECTED || conn == Conn.RECONNECTING) {
-            FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
+            // sur téléphone avec les boutons musique, le bouton Conduite devient une simple icône pour garder la place
+            if (media && !wide) FilledTonalIconButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, "Mode conduite") }
+            else FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
             if (!locked) IconButton(onClick = { ask = true }) { Icon(Icons.Rounded.PowerSettingsNew, "Déconnecter") }
         } else if (conn == Conn.CONNECTING) {
             IconButton(onClick = { ObdManager.disconnect() }) { Icon(Icons.Rounded.Close, "Annuler") }
