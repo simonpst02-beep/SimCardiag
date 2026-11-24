@@ -29,5 +29,19 @@ object MediaKeys {
     fun previous(ctx: Context) = key(ctx, KeyEvent.KEYCODE_MEDIA_PREVIOUS)
     fun next(ctx: Context) = key(ctx, KeyEvent.KEYCODE_MEDIA_NEXT)
 
+    const val SPOTIFY = "com.spotify.music"
+
+    /** Ouvre Spotify ; s'il n'est pas installé, ouvre sa page dans le Play Store. Renvoie false si rien n'a pu s'ouvrir. */
+    fun openSpotify(ctx: Context): Boolean {
+        val launch = ctx.packageManager.getLaunchIntentForPackage(SPOTIFY)
+        val i = launch ?: android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("market://details?id=$SPOTIFY"))
+        return runCatching { ctx.startActivity(i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true }.getOrElse {
+            runCatching {
+                ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse("https://open.spotify.com")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)); true
+            }.getOrDefault(false)
+        }
+    }
+
     fun isPlaying(ctx: Context) = am(ctx)?.isMusicActive == true
 }
