@@ -78,7 +78,7 @@ private fun CarDashboard(l: Live, v: Vehicle, locked: Boolean, onTab: (Int) -> U
     val rows = remember(v.layout) {
         val out = mutableListOf<MutableList<WidgetCfg>>()
         var used = 4
-        for (w in v.layout) {
+        for (w in v.layout.filter { it.kind != "rec" }) {   // l'enregistrement passe en bouton dans la barre du haut
             val span = if (w.wide) 2 else 1
             if (used + span > 4) { out += mutableListOf<WidgetCfg>(); used = 0 }
             out.last() += w; used += span
@@ -94,6 +94,13 @@ private fun CarDashboard(l: Live, v: Vehicle, locked: Boolean, onTab: (Int) -> U
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(gap)) {
             Row(Modifier.fillMaxWidth().height(bar), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CarHealthChip(l, v, Modifier.weight(1f)) { onTab(1) }
+                if (v.layout.any { it.kind == "rec" }) {
+                    if (l.recording) Button(onClick = { ObdManager.toggleRecording() }, colors = ButtonDefaults.buttonColors(containerColor = LocalObd.current.bad)) {
+                        Icon(Icons.Rounded.Stop, null); Spacer(Modifier.width(6.dp)); Text("Arrêter")
+                    } else FilledTonalButton(onClick = { ObdManager.toggleRecording() }) {
+                        Icon(Icons.Rounded.FiberManualRecord, null); Spacer(Modifier.width(6.dp)); Text("Enregistrer")
+                    }
+                }
                 if (!locked) FilledTonalButton(onClick = onEdit) { Icon(Icons.Rounded.Tune, null); Spacer(Modifier.width(6.dp)); Text("Personnaliser") }
             }
             if (rows.isEmpty()) EmptyState(Icons.Rounded.Dashboard, MaterialTheme.colorScheme.primary, "Aucun widget", "Touchez Personnaliser pour en ajouter.")

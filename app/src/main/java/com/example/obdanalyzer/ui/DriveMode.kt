@@ -43,12 +43,14 @@ fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (l.conn == Conn.RECONNECTING) "Reconnexion…" else v.name, style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f), maxLines = 1)
-                if (s.mediaButtons || s.spotifyButton) { MediaBar(size = if (compact) 44.dp else 56.dp); Spacer(Modifier.width(12.dp)) }
+                // en paysage, les boutons musique tiennent sur la ligne du haut ; en portrait, ils ont leur propre ligne
+                if (landscape && (s.mediaButtons || s.spotifyButton)) { MediaBar(size = if (compact) 44.dp else 56.dp); Spacer(Modifier.width(12.dp)) }
                 if (compact) FilledTonalIconButton(onClick = onExit) { Icon(Icons.Rounded.Close, "Quitter") }
                 else FilledTonalButton(onClick = onExit, modifier = Modifier.height(52.dp)) {
                     Icon(Icons.Rounded.Close, null); Spacer(Modifier.width(6.dp)); Text("Quitter")
                 }
             }
+            if (!landscape && (s.mediaButtons || s.spotifyButton)) MediaBar(Modifier.fillMaxWidth(), size = 52.dp)
             if (s.shiftLight && l.values.containsKey("rpm"))
                 ShiftLight(l.values["rpm"], s.rpmLimit, Modifier.fillMaxWidth(), height = if (compact) 14.dp else 26.dp, leds = 12)
             if (alert != null) {
