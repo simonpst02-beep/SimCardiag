@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.obdanalyzer.core.Conn
@@ -24,54 +26,79 @@ import com.example.obdanalyzer.core.Settings
 import com.example.obdanalyzer.core.Vehicle
 import com.example.obdanalyzer.core.displayValue
 
-/** Écran simplifié pour la conduite : 4 très grandes valeurs, aucune manipulation nécessaire. */
+/**
+ * Écran simplifié pour la conduite : 4 très grandes valeurs, aucune manipulation nécessaire.
+ * La taille des chiffres s'adapte à la place disponible, pour rester lisibles en portrait comme en paysage.
+ */
 @Composable
 fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
     BackHandler(onBack = onExit)
     val defs = s.driveMetrics.mapNotNull { ObdManager.metric(it) }.take(4)
     val alert = l.alerts.firstOrNull { it.level != Level.OK }
-    BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding()) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).systemBarsPadding().displayCutoutPadding()) {
         val landscape = maxWidth > maxHeight
-        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        val compact = maxHeight < 480.dp          // téléphone couché : peu de hauteur
+        val gap = if (compact) 8.dp else 12.dp
+        Column(Modifier.fillMaxSize().padding(if (compact) 10.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(gap)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (l.conn == Conn.RECONNECTING) "Reconnexion…" else v.name, style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                FilledTonalButton(onClick = onExit, modifier = Modifier.height(52.dp)) {
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f), maxLines = 1)
+                if (compact) FilledTonalIconButton(onClick = onExit) { Icon(Icons.Rounded.Close, "Quitter") }
+                else FilledTonalButton(onClick = onExit, modifier = Modifier.height(52.dp)) {
                     Icon(Icons.Rounded.Close, null); Spacer(Modifier.width(6.dp)); Text("Quitter")
                 }
             }
             if (alert != null) {
                 val c = levelColor(alert.level)
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(c).padding(16.dp),
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(if (compact) 14.dp else 20.dp)).background(c)
+                    .padding(horizontal = 16.dp, vertical = if (compact) 6.dp else 16.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Rounded.Warning, null, tint = Color.Black, modifier = Modifier.size(32.dp))
-                    Text(alert.text, color = Color.Black, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Icon(Icons.Rounded.Warning, null, tint = Color.Black, modifier = Modifier.size(if (compact) 22.dp else 32.dp))
+                    Text(alert.text, color = Color.Black, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium,
+                        maxLines = if (compact) 1 else 3, overflow = TextOverflow.Ellipsis)
                 }
             }
-            val cols = if (landscape) 2 else 1
-            val rows = defs.chunked(cols)
-            rows.forEach { row ->
-                Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Paysage sur téléphone : toutes les valeurs sur une ligne ; tablette en paysage : 2 x 2 ; portrait : une par ligne
+            val cols = when {
+                landscape && compact -> defs.size.coerceAtLeast(1)
+                landscape -> 2
+                else -> 1
+            }
+            defs.chunked(cols).forEach { row ->
+                Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(gap)) {
                     row.forEach { d ->
                         val raw = l.values[d.key]
                         val (value, unitShown) = displayValue(d.key, raw, if (d.key == "cons") l.consUnit else d.unit, s)
                         val (_, lvl) = hint(d.key, raw, l, v)
                         val c = when (lvl) { Level.BAD -> LocalObd.current.bad; Level.WARN -> LocalObd.current.warn; else -> MaterialTheme.colorScheme.onSurface }
-                        Column(
-                            Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(28.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainer).padding(16.dp),
-                            verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(d.name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(value?.let { ObdManager.fmt(it) } ?: "—", fontSize = if (landscape) 72.sp else 64.sp,
-                                fontWeight = FontWeight.Black, color = c, maxLines = 1)
-                            Text(unitShown, style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
+                        DriveCell(d.name, value?.let { ObdManager.fmt(it) } ?: "—", unitShown, c, Modifier.weight(1f).fillMaxHeight())
                     }
-                    if (row.size < cols) Spacer(Modifier.weight(1f))
+                    if (row.size < cols) Spacer(Modifier.weight((cols - row.size).toFloat()))
                 }
             }
+        }
+    }
+}
+
+/** Une case : nom, valeur, unité. La valeur prend la plus grande taille qui tient dans la case. */
+@Composable
+private fun DriveCell(name: String, text: String, unit: String, color: Color, modifier: Modifier) {
+    BoxWithConstraints(
+        modifier.clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 8.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        val density = LocalDensity.current
+        val small = maxHeight < 140.dp
+        val labelSize = if (small) 12.sp else 16.sp
+        val labelH = with(density) { (labelSize * 1.35f).toDp() } * 2       // nom + unité
+        val byHeight = (maxHeight - labelH) * 0.82f
+        val byWidth = maxWidth / (maxOf(text.length, 2) * 0.62f)
+        val valueDp = minOf(byHeight, byWidth).coerceIn(18.dp, 160.dp)
+        val valueSize = with(density) { valueDp.toSp() }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(name, fontSize = labelSize, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text, fontSize = valueSize, lineHeight = valueSize, fontWeight = FontWeight.Black, color = color, maxLines = 1, softWrap = false)
+            Text(unit, fontSize = labelSize, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         }
     }
 }
