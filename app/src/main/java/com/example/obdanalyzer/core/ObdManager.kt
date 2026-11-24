@@ -230,7 +230,7 @@ object ObdManager {
 
     /** Toutes les mesures affichables pour le véhicule actif. */
     fun metricDefs(): List<MetricDef> =
-        Pids.ALL.map { it.def } + listOf(Pids.VOLT, Pids.CONS, Pids.LEFT, Pids.RANGE) +
+        Pids.ALL.map { it.def } + listOf(Pids.VOLT, Pids.CONS, Pids.LEFT, Pids.RANGE, Pids.GPSV) +
             activeVehicle().customPids.map { MetricDef(it.key, it.name, it.unit, it.min, it.max, Family.CUSTOM) }
 
     fun metric(key: String?): MetricDef? = metricDefs().firstOrNull { it.key == key }
@@ -355,7 +355,8 @@ object ObdManager {
         series.clear(); lastSeriesT = 0L
         perfTimer.reset()
         knownDtcs = null; lastDtcCheck = System.currentTimeMillis()
-        if (_settings.value.gps) gps.start()
+        if (_settings.value.gps || _settings.value.gpsDistance || _settings.value.gpsCorrect) gps.start()
+        lastGpsKm = 0.0; cmpObdKm = 0.0; cmpGpsKm = 0.0
         activeAlertIds = emptySet()
     }
 
@@ -475,8 +476,23 @@ object ObdManager {
         if (src != consSource) { consSource = src; conn.note("Consommation calculée par : $src") }
     }
 
+    // Comparaison compteur / GPS pendant le trajet
+    private var lastGpsKm = 0.0
+    private var cmpObdKm = 0.0
+    private var cmpGpsKm = 0.0
+
     private fun compute(values: HashMap<String, Double>, dt: Double) {
         val v = activeVehicle()
+        val s0 = _settings.value
+        val gpsV = gps.speedKmh()
+        if (gpsV != null) values["gpsspeed"] = gpsV
+        // Mesure de l'écart compteur / GPS : en ligne droite et à vitesse stable, au-dessus de 40 km/h
+        val obdV = values["speed"]
+        if (obdV != null && gpsV != null && obdV > 40 && gpsV > 35 && dt in 0.0..2.0 && kotlin.math.abs(obdV - gpsV) / obdV < 0.15) {
+            cmpObdKm += obdV * dt / 3600; cmpGpsKm += gpsV * dt / 3600
+        }
+        // Vitesse corrigée par le GPS si l'option est active et la mesure fiable
+        if (s0.gpsCorrect && v.speedSampleKm >= 10 && obdV != null) values["speed"] = obdV * v.speedFactor
         val speed = values["speed"]
         val rpm = values["rpm"]
         val lph = estimateLph(values, v)
@@ -495,6 +511,16 @@ object ObdManager {
             values["left"] = left
             val avg = (if (dist > 5) fuel / dist * 100 else null) ?: v.lastAvgCons ?: 6.5
             values["range"] = left / avg * 100
+        }
+        // Distance : vitesse de la voiture ; sinon (vitesse absente, coupure, reconnexion) distance mesurée par le GPS
+        val gk = gps.totalKm
+        val gpsDelta = (gk - lastGpsKm).coerceAtLeast(0.0)
+        lastGpsKm = gk
+        if (s0.gpsDistance && gpsDelta <= 50.0) {
+            val obdInc = if (speed != null && dt in 0.0..5.0) speed * dt / 3600 else 0.0
+            // vitesse absente : tout vient du GPS ; après une coupure (reconnexion), on rattrape les km faits pendant le trou
+            if (speed == null || dt !in 0.0..5.0) dist += gpsDelta
+            else if (gpsDelta - obdInc > 0.2) dist += gpsDelta - obdInc
         }
         if (dt in 0.0..5.0) {
             if (speed != null) {
@@ -637,6 +663,15 @@ object ObdManager {
             if (series.isNotEmpty()) store.saveSeries(t.id, series.toList())
             val d = dist
             updateActive { it.copy(odometerKm = it.odometerKm + d) }
+            // Écart compteur / GPS : moyenne pondérée avec les mesures des trajets précédents
+            if (cmpObdKm >= 2) {
+                val o = cmpObdKm; val g = cmpGpsKm
+                updateActive {
+                    val prevKm = it.speedSampleKm.coerceAtMost(200.0)
+                    val f = ((it.speedFactor * prevKm + (g / o) * o) / (prevKm + o)).coerceIn(0.85, 1.10)
+                    it.copy(speedFactor = f, speedSampleKm = it.speedSampleKm + o)
+                }
+            }
         }
         val lastFuel = _live.value.values["fuel"]
         val avg = _live.value.stats.avgConsumption

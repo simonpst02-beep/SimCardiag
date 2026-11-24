@@ -375,8 +375,19 @@ private fun SettingsCard(s: Settings) {
         SwitchRow("Surveiller les défauts en roulant", "Relit les codes chaque minute et prévient dès qu'un défaut apparaît", s.monitorDtc) { v ->
             ObdManager.updateSettings { it.copy(monitorDtc = v) }
         }
-        SwitchRow("Tracer les trajets sur une carte", "Utilise le GPS du téléphone pendant les trajets", s.gps) { v ->
+        SwitchRow("Tracer les trajets sur une carte", "Utilise le GPS de l'appareil pendant les trajets", s.gps) { v ->
             ObdManager.updateSettings { it.copy(gps = v) }
+        }
+        SwitchRow("Distance de secours par GPS", "Compte les km avec le GPS quand la voiture ne donne pas sa vitesse ou pendant une reconnexion", s.gpsDistance) { v ->
+            ObdManager.updateSettings { it.copy(gpsDistance = v) }
+        }
+        val av = ObdManager.vehicles.value.firstOrNull { it.id == s.activeVehicleId }
+        val ecart = av?.takeIf { it.speedSampleKm >= 10 }?.let { (1 / it.speedFactor - 1) * 100 }
+        SwitchRow("Corriger avec le GPS",
+            (if (ecart == null) "Mesure de votre compteur en cours : roulez une dizaine de km au-dessus de 40 km/h. "
+            else "Votre compteur indique ${if (ecart >= 0) "+" else ""}${ObdManager.fmt(ecart)} % par rapport au GPS (sur ${ObdManager.fmt(av.speedSampleKm)} km). ") +
+                "Activé, la vitesse, les km et la consommation sont corrigés de cet écart.", s.gpsCorrect) { v ->
+            ObdManager.updateSettings { it.copy(gpsCorrect = v) }
         }
         JournalButton()
 

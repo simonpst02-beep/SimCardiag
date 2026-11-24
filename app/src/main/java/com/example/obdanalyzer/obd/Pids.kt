@@ -52,6 +52,7 @@ object Pids {
     val CONS = MetricDef("cons", "Consommation", "L/100km", 0.0, 20.0, Family.ENERGY)
     val LEFT = MetricDef("left", "Carburant restant", "L", 0.0, 70.0, Family.ENERGY)
     val RANGE = MetricDef("range", "Autonomie", "km", 0.0, 900.0, Family.ENERGY)
+    val GPSV = MetricDef("gpsspeed", "Vitesse GPS", "km/h", 0.0, 200.0, Family.SPEED)
 
     fun byCode(code: String): Pid? = ALL.firstOrNull { it.code == code }
 }

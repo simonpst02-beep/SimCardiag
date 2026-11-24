@@ -80,6 +80,10 @@ data class Vehicle(
     /** Niveau du réservoir indiqué à la main (litres) et quand : point de départ du calcul quand la voiture ne donne pas sa jauge. */
     val fuelRefL: Double? = null,
     val fuelRefAt: Long = 0,
+    /** Rapport vitesse GPS / vitesse compteur, mesuré en roulant (1,00 = compteur juste ; 0,96 = compteur 4 % trop haut). */
+    val speedFactor: Double = 1.0,
+    /** km de mesure qui ont servi à calculer ce rapport (fiable à partir de 10 km). */
+    val speedSampleKm: Double = 0.0,
 )
 
 data class TripSummary(
@@ -151,6 +155,9 @@ data class Settings(
     val voiceAlerts: Boolean = false,
     val shiftLight: Boolean = true,
     val drivingLock: Boolean = true,
+    // GPS
+    val gpsDistance: Boolean = true,          // compter les km avec le GPS quand la voiture ne donne pas sa vitesse
+    val gpsCorrect: Boolean = false,          // corriger la vitesse, les km et la consommation avec l'écart compteur / GPS
     val mediaButtons: Boolean = false,
     val spotifyButton: Boolean = false,       // raccourci Spotify, indépendant des boutons musique
     // Mises à jour

@@ -70,6 +70,8 @@ class Store(private val context: Context) {
             voiceAlerts = o.optBoolean("voiceAlerts", false),
             shiftLight = o.optBoolean("shiftLight", true),
             drivingLock = o.optBoolean("drivingLock", true),
+            gpsDistance = o.optBoolean("gpsDistance", true),
+            gpsCorrect = o.optBoolean("gpsCorrect", false),
             mediaButtons = o.optBoolean("mediaButtons", false),
             spotifyButton = o.optBoolean("spotifyButton", false),
             githubToken = o.optString("githubToken", ""),
@@ -90,7 +92,7 @@ class Store(private val context: Context) {
             .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
             .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)
             .put("layoutMode", s.layoutMode.name).put("voiceAlerts", s.voiceAlerts).put("shiftLight", s.shiftLight)
-            .put("drivingLock", s.drivingLock).put("mediaButtons", s.mediaButtons).put("spotifyButton", s.spotifyButton)
+            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("gpsCorrect", s.gpsCorrect).put("mediaButtons", s.mediaButtons).put("spotifyButton", s.spotifyButton)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 
@@ -110,7 +112,7 @@ class Store(private val context: Context) {
     private fun vehicleTo(v: Vehicle) = JSONObject()
         .put("id", v.id).put("name", v.name).put("vin", v.vin ?: "").put("fuel", v.fuel.name)
         .put("tankL", v.tankL).put("odometerKm", v.odometerKm).put("preset", v.preset)
-        .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor).put("engineL", v.engineL).put("fuelRefL", v.fuelRefL ?: -1.0).put("fuelRefAt", v.fuelRefAt)
+        .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor).put("engineL", v.engineL).put("fuelRefL", v.fuelRefL ?: -1.0).put("fuelRefAt", v.fuelRefAt).put("speedFactor", v.speedFactor).put("speedSampleKm", v.speedSampleKm)
         .put("layout", JSONArray().apply { v.layout.forEach { put(JSONObject().put("k", it.kind).put("m", it.metric ?: "").put("w", it.wide)) } })
         .put("maintenance", JSONArray().apply {
             v.maintenance.forEach {
@@ -166,6 +168,8 @@ class Store(private val context: Context) {
             engineL = o.optDouble("engineL", 1.4),
             fuelRefL = o.optDouble("fuelRefL", -1.0).takeIf { it >= 0 },
             fuelRefAt = o.optLong("fuelRefAt", 0),
+            speedFactor = o.optDouble("speedFactor", 1.0),
+            speedSampleKm = o.optDouble("speedSampleKm", 0.0),
         )
         return if (layout != null) base.copy(layout = layout) else base
     }
