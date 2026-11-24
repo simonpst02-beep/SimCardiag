@@ -488,8 +488,9 @@ object ObdManager {
             val shown = lphSmooth!!
             if (speed != null && speed > 10) values["cons"] = shown / speed * 100 else { values["cons"] = shown; unit = "L/h" }
         } else lphSmooth = null
-        // Carburant restant : jauge de la voiture si elle la transmet, sinon calcul depuis le dernier plein complet
-        val left = values["fuel"]?.let { it / 100 * v.tankL } ?: litersSinceFull(v)?.let { (v.tankL - it - fuel).coerceAtLeast(0.0) }
+        // Carburant restant : jauge de la voiture si elle la transmet (rare avant 2010, ex. Corsa D),
+        // sinon calcul depuis le dernier plein complet ou le dernier niveau indiqué à la main
+        val left = values["fuel"]?.let { it / 100 * v.tankL } ?: estimatedLeft(v)
         if (left != null) {
             values["left"] = left
             val avg = (if (dist > 5) fuel / dist * 100 else null) ?: v.lastAvgCons ?: 6.5
@@ -996,6 +997,33 @@ object ObdManager {
     private fun litersSinceFull(v: Vehicle): Double? {
         val last = _fuel.value.filter { it.vehicleId == v.id && it.full }.maxByOrNull { it.date } ?: return null
         return _trips.value.filter { it.vehicleId == v.id && it.start > last.date }.sumOf { it.fuelL }
+    }
+
+    private var refSessionFuel = 0.0
+
+    /**
+     * Litres restants estimés : on part du repère le plus récent (plein complet = réservoir plein, ou niveau indiqué à la main),
+     * on ajoute les pleins partiels notés depuis, on retire ce que les trajets ont consommé. null si aucun repère.
+     */
+    private fun estimatedLeft(v: Vehicle): Double? {
+        val full = _fuel.value.filter { it.vehicleId == v.id && it.full }.maxByOrNull { it.date }
+        val (refL, refAt) = when {
+            v.fuelRefL != null && (full == null || v.fuelRefAt > full.date) -> v.fuelRefL to v.fuelRefAt
+            full != null -> v.tankL to full.date
+            else -> return null
+        }
+        val added = _fuel.value.filter { it.vehicleId == v.id && !it.full && it.date > refAt }.sumOf { it.liters }
+        val used = _trips.value.filter { it.vehicleId == v.id && it.start > refAt }.sumOf { it.fuelL }
+        val current = if (sessionStart >= refAt) fuel else (fuel - refSessionFuel).coerceAtLeast(0.0)
+        return (refL + added - used - current).coerceIn(0.0, v.tankL)
+    }
+
+    /** L'utilisateur indique le niveau de la jauge (0 à 1) : nouveau point de départ pour le carburant restant et l'autonomie. */
+    fun setFuelLevel(fraction: Double) {
+        val v = activeVehicle()
+        refSessionFuel = fuel
+        updateVehicle(v.id) { it.copy(fuelRefL = fraction.coerceIn(0.0, 1.0) * it.tankL, fuelRefAt = System.currentTimeMillis()) }
+        _live.update { it.copy(message = "Niveau enregistré : l'autonomie est calculée à partir de maintenant") }
     }
 
     /**

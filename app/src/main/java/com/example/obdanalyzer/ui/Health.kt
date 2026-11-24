@@ -55,7 +55,7 @@ fun hint(key: String, v: Double?, l: Live, v0: Vehicle): Pair<String, Level?> {
         "speed" -> if (v < 2) "À l'arrêt" to null else "" to null
         "range" -> if (v < 60) "Pensez à faire le plein" to Level.WARN
                    else (if (l.values["fuel"] == null) "Estimé depuis le dernier plein" to null else "Selon votre conso du jour" to Level.OK)
-        "left" -> if (l.values["fuel"] == null) "Estimé depuis le dernier plein" to null else "" to null
+        "left" -> if (l.values["fuel"] == null) "Estimé depuis le dernier plein ou le niveau indiqué" to null else "" to null
         else -> "" to null
     }
 }

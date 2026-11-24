@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlin.math.roundToInt
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -188,14 +189,46 @@ fun DpfScreen(l: Live, wide: Boolean) {
 // ---------------------------------------------------------------- carnet de carburant
 
 @Composable
+/** Indiquer le niveau de la jauge à la main (voitures qui ne transmettent pas leur jauge, comme la Corsa D). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FuelLevelDialog(v: Vehicle, onDismiss: () -> Unit) {
+    var eighths by remember { mutableIntStateOf(4) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Niveau du réservoir") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Votre voiture ne transmet pas sa jauge. Indiquez où en est l'aiguille : l'appli calcule ensuite le carburant restant et l'autonomie au fil des trajets.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(1 to "Réserve", 2 to "1/4", 4 to "1/2", 6 to "3/4", 8 to "Plein").forEach { (e, n) ->
+                        FilterChip(selected = eighths == e, onClick = { eighths = e }, label = { Text(n) })
+                    }
+                }
+                Slider(value = eighths.toFloat(), onValueChange = { eighths = it.roundToInt() }, valueRange = 0f..8f, steps = 7)
+                Text("≈ ${ObdManager.fmt(eighths / 8.0 * v.tankL)} L sur ${ObdManager.fmt(v.tankL)} L", fontWeight = FontWeight.SemiBold)
+                Text("Après un plein complet, notez-le plutôt dans le carnet de carburant : c'est plus précis.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        confirmButton = { TextButton(onClick = { ObdManager.setFuelLevel(eighths / 8.0); onDismiss() }) { Text("Enregistrer") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+    )
+}
+
+@Composable
 fun FuelScreen(v: Vehicle, wide: Boolean) {
     val obd = LocalObd.current
     val all by ObdManager.fuelLog.collectAsStateWithLifecycle()
     val mine = all.filter { it.vehicleId == v.id }
     val st = fuelStats(mine)
     var adding by remember { mutableStateOf(false) }
+    var level by remember { mutableStateOf(false) }
+    if (level) FuelLevelDialog(v) { level = false }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         SectionCard(Icons.Rounded.LocalGasStation, obd.energy, "Carnet de carburant") {
+            OutlinedButton(onClick = { level = true }) { Icon(Icons.Rounded.Tune, null); Spacer(Modifier.width(6.dp)); Text("Indiquer le niveau du réservoir") }
             Row(Modifier.fillMaxWidth()) {
                 BigStat(st.realConsumption?.let { ObdManager.fmt(it) } ?: "—", "L/100 km réels", Modifier.weight(1f))
                 BigStat(st.costPerKm?.let { String.format(Locale.FRANCE, "%.2f €", it * 100) } ?: "—", "pour 100 km", Modifier.weight(1f))

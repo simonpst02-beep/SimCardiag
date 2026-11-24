@@ -77,6 +77,9 @@ data class Vehicle(
     val consFactor: Double = 1.0,
     /** Cylindrée en litres : sert à estimer le débit d'air quand la voiture n'a pas de débitmètre. */
     val engineL: Double = 1.4,
+    /** Niveau du réservoir indiqué à la main (litres) et quand : point de départ du calcul quand la voiture ne donne pas sa jauge. */
+    val fuelRefL: Double? = null,
+    val fuelRefAt: Long = 0,
 )
 
 data class TripSummary(

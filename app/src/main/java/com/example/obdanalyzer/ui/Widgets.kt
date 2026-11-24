@@ -140,6 +140,11 @@ fun ColumnScope.WidgetContent(w: WidgetCfg, l: Live, v: Vehicle, onTab: (Int) ->
                 Text(unit, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
             }
             HintLine(h, lvl)
+            if (raw == null && def.key in setOf("left", "range") && l.values.isNotEmpty()) {
+                var ask by remember { mutableStateOf(false) }
+                TextButton(onClick = { ask = true }, contentPadding = PaddingValues(0.dp)) { Text("Indiquer le niveau du réservoir") }
+                if (ask) FuelLevelDialog(v) { ask = false }
+            }
         }
         "gauge" -> if (def != null) {
             val value = l.values[def.key]

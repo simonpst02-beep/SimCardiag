@@ -110,7 +110,7 @@ class Store(private val context: Context) {
     private fun vehicleTo(v: Vehicle) = JSONObject()
         .put("id", v.id).put("name", v.name).put("vin", v.vin ?: "").put("fuel", v.fuel.name)
         .put("tankL", v.tankL).put("odometerKm", v.odometerKm).put("preset", v.preset)
-        .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor).put("engineL", v.engineL)
+        .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor).put("engineL", v.engineL).put("fuelRefL", v.fuelRefL ?: -1.0).put("fuelRefAt", v.fuelRefAt)
         .put("layout", JSONArray().apply { v.layout.forEach { put(JSONObject().put("k", it.kind).put("m", it.metric ?: "").put("w", it.wide)) } })
         .put("maintenance", JSONArray().apply {
             v.maintenance.forEach {
@@ -164,6 +164,8 @@ class Store(private val context: Context) {
             lastAvgCons = o.optDouble("lastAvgCons", -1.0).takeIf { it >= 0 },
             consFactor = o.optDouble("consFactor", 1.0),
             engineL = o.optDouble("engineL", 1.4),
+            fuelRefL = o.optDouble("fuelRefL", -1.0).takeIf { it >= 0 },
+            fuelRefAt = o.optLong("fuelRefAt", 0),
         )
         return if (layout != null) base.copy(layout = layout) else base
     }
