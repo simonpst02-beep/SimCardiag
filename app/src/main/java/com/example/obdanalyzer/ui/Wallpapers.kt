@@ -229,7 +229,7 @@ fun WallpaperLayer(w: Wallpaper, modifier: Modifier = Modifier.fillMaxSize(), sp
                 drawPath(path, ink.copy(alpha = if (dark) 0.06f else 0.05f), style = Stroke(2f))
                 drawRect(Brush.verticalGradient(listOf(accent.copy(alpha = 0.10f), Color.Transparent, accent.copy(alpha = 0.08f))))
             }
-            Wallpaper.NONE -> Unit
+            Wallpaper.NONE, Wallpaper.CARBON_RED_LIVE -> Unit
         }
     }
 }
