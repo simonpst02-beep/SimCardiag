@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
 
 private val NEEDED: Array<String> = buildList {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_CONNECT)
+    // pour arrêter les recherches Bluetooth de l'autoradio, qui ralentissent et font décrocher la liaison avec le boîtier
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_SCAN)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
     add(Manifest.permission.ACCESS_FINE_LOCATION)
     add(Manifest.permission.ACCESS_COARSE_LOCATION)

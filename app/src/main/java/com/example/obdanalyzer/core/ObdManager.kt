@@ -301,7 +301,7 @@ object ObdManager {
     @SuppressLint("MissingPermission")
     private suspend fun openAndInit(device: android.bluetooth.BluetoothDevice) {
         conn.legacy = _settings.value.legacyLink
-        conn.open(device)
+        conn.open(device, adapter)
         addLog("Bluetooth connecté", 1)
         conn.initialize { line, step -> addLog(line, step) }
         val supported = detectSupported()
@@ -456,6 +456,8 @@ object ObdManager {
                 if (pollPaused) { delay(100); last = System.currentTimeMillis(); continue }
                 val values = HashMap<String, Double>()
                 val ok = try {
+                    // toutes les ~10 s : si l'autoradio relance une recherche Bluetooth, on l'arrête (cause connue de décrochages)
+                    if (loop % 100 == 0 && conn.stopDiscovery(adapter)) conn.note("Recherche Bluetooth de l'appareil en cours pendant la liaison : arrêtée")
                     readStandard(values)
                     // moteur arrêté, contact mis : tension lue à chaque tour pour saisir la chute au démarreur
                     val engineOff = (values["rpm"] ?: 0.0) < 300

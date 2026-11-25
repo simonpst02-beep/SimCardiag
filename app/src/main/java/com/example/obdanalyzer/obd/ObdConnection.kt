@@ -42,9 +42,20 @@ class ObdConnection {
     val isOpen: Boolean get() = socket?.isConnected == true
 
     @SuppressLint("MissingPermission")
-    suspend fun open(device: BluetoothDevice) = withContext(Dispatchers.IO) {
+    /**
+     * Arrête une recherche d'appareils Bluetooth en cours : Android la déconseille pendant une liaison,
+     * elle ralentit fortement le débit et fait décrocher les boîtiers OBD (les autoradios en lancent souvent seuls).
+     * Renvoie true si une recherche était en cours.
+     */
+    @android.annotation.SuppressLint("MissingPermission")
+    fun stopDiscovery(adapter: android.bluetooth.BluetoothAdapter?): Boolean = runCatching {
+        if (adapter?.isDiscovering == true) { adapter.cancelDiscovery(); true } else false
+    }.getOrDefault(false)
+
+    suspend fun open(device: BluetoothDevice, adapter: android.bluetooth.BluetoothAdapter? = null) = withContext(Dispatchers.IO) {
         close()
         physical = false
+        if (stopDiscovery(adapter)) note("Recherche Bluetooth de l'appareil arrêtée avant la connexion")
         val s = try {
             device.createRfcommSocketToServiceRecord(SPP_UUID).also { it.connect() }
         } catch (e: IOException) {
