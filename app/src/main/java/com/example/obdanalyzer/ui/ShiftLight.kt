@@ -23,7 +23,8 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun ShiftLight(rpm: Double?, limit: Int, modifier: Modifier = Modifier, height: Dp = 18.dp, leds: Int = 10) {
-    val start = limit * 0.6
+    // s'allume dès 40 % du régime d'alerte (ex. 1 800 tr/min pour 4 500) pour suivre la conduite normale
+    val start = limit * 0.4
     val frac = if (rpm == null) 0.0 else ((rpm - start) / (limit - start)).coerceIn(0.0, 1.0)
     val lit = (frac * leds).let { kotlin.math.ceil(it).toInt() }
     val over = rpm != null && rpm >= limit

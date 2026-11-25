@@ -405,6 +405,7 @@ object ObdManager {
 
     private fun startPolling() {
         pollJob?.cancel()
+        pidMiss.clear(); pidSkipped.clear()
         pollJob = scope.launch {
             var fails = 0
             var loop = 0
@@ -416,7 +417,8 @@ object ObdManager {
                     readStandard(values)
                     // moteur arrêté, contact mis : tension lue à chaque tour pour saisir la chute au démarreur
                     val engineOff = (values["rpm"] ?: 0.0) < 300
-                    if (loop % 10 == 0 || engineOff || crankWatch) ObdParser.parseVoltage(conn.send("ATRV"))?.let { values["volt"] = it }
+                    if (loop % 10 == 0 || engineOff || crankWatch)
+                        (try { conn.send("ATRV", 1500) } catch (e: ObdConnection.ObdTimeout) { null })?.let { r -> ObdParser.parseVoltage(r)?.let { values["volt"] = it } }
                     else _live.value.values["volt"]?.let { values["volt"] = it }
                     if (loop % 4 == 0) readCustom(values)
                     else activeVehicle().customPids.forEach { c -> _live.value.values[c.key]?.let { values[c.key] = it } }
@@ -425,7 +427,8 @@ object ObdManager {
 
                 if (!ok) {
                     fails++
-                    if (fails >= 5) { conn.note("5 échecs de suite : connexion perdue"); onConnectionLost(); return@launch }
+                    if (fails >= 3) { conn.note("3 échecs de suite : connexion perdue"); onConnectionLost(); return@launch }
+                    delay(300)
                     continue
                 }
                 fails = 0
@@ -448,30 +451,69 @@ object ObdManager {
         }
     }
 
+    // Mesures qui ne répondent pas : mises de côté pour ce trajet après 3 absences de suite
+    private val pidMiss = HashMap<String, Int>()
+    private val pidSkipped = HashSet<String>()
+    private var pollLoop = 0
+
+    /** Mesures lues à chaque tour : celles affichées, celles du mode conduite et celles qui servent aux calculs. */
+    private fun fastKeys(): Set<String> {
+        val v = activeVehicle()
+        return v.layout.mapNotNull { it.metric }.toSet() + _settings.value.driveMetrics +
+            setOf("rpm", "speed", "maf", "map", "iat", "load", "fuelrate", "fcut", "stft", "ltft", "lambda", "fuel", "cool")
+    }
+
+    /**
+     * Lecture des mesures standard.
+     * - les mesures utiles sont lues à chaque tour, les autres un tour sur 8 : le boîtier n'est plus saturé ;
+     * - une mesure qui ne répond pas à temps ne coupe plus la connexion : elle est sautée, puis mise de côté ;
+     * - la connexion n'est déclarée perdue que si plus rien ne répond.
+     */
     private suspend fun readStandard(values: HashMap<String, Double>) {
-        val pids = _live.value.supported
+        pollLoop++
+        val fast = fastKeys()
+        val pids = _live.value.supported.filter { it.code !in pidSkipped && (it.def.key in fast || pollLoop % 8 == 0) }
+        if (pids.isEmpty()) return
+        var answered = 0
+        var timeouts = 0
         if (_live.value.multi) {
             for (chunk in pids.chunked(6)) {
-                val raw = conn.send("01" + chunk.joinToString("") { it.code })
+                val raw = try { conn.send("01" + chunk.joinToString("") { it.code }, 1500) }
+                    catch (e: ObdConnection.ObdTimeout) { timeouts++; multiFails++; if (multiFails >= 3) _live.update { it.copy(multi = false) }; continue }
                 val parsed = ObdParser.parseMulti(raw, chunk)
+                if (parsed.isNotEmpty()) answered++
                 for (p in chunk) parsed[p.code]?.let { values[p.def.key] = p.decode(it) }
                 if (parsed.size * 2 < chunk.size) {
                     multiFails++
-                    if (multiFails >= 3) _live.update { it.copy(multi = false) }
+                    if (multiFails >= 3) { _live.update { it.copy(multi = false) }; conn.note("Lecture groupée abandonnée : réponses incomplètes") }
                 }
             }
         } else {
             for (p in pids) {
-                ObdParser.parseMode01(conn.send("01${p.code}"), p.code, p.bytes)?.let { values[p.def.key] = p.decode(it) }
+                val raw = try { conn.send("01${p.code}", 1200) } catch (e: ObdConnection.ObdTimeout) { timeouts++; miss(p.code); continue }
+                val bytes = ObdParser.parseMode01(raw, p.code, p.bytes)
+                if (bytes != null) { values[p.def.key] = p.decode(bytes); pidMiss.remove(p.code); answered++ } else miss(p.code)
             }
         }
+        // Plus rien ne répond (et ce n'est pas juste « moteur coupé ») : on vérifie que le boîtier est encore là
+        if (answered == 0 && timeouts > 0) {
+            try { conn.send("ATRV", 1500) } catch (e: ObdConnection.ObdTimeout) { throw IOException("Le boîtier ne répond plus") }
+        }
+    }
+
+    private fun miss(code: String) {
+        val n = (pidMiss[code] ?: 0) + 1
+        pidMiss[code] = n
+        // on ne met jamais de côté le régime ni la vitesse
+        if (n >= 3 && code != "0C" && code != "0D") { pidSkipped += code; conn.note("Mesure 01$code mise de côté : pas de réponse 3 fois de suite") }
     }
 
     private suspend fun readCustom(values: HashMap<String, Double>) {
         for (c in activeVehicle().customPids) {
             val expr = Expr.compile(c.formula) ?: continue
             if (c.header.isNotBlank()) conn.send("ATSH${c.header.trim()}")
-            val bytes = ObdParser.parseGeneric(conn.send(c.command.replace(" ", ""), 3000), c.command)
+            val bytes = try { ObdParser.parseGeneric(conn.send(c.command.replace(" ", ""), 2000), c.command) }
+                catch (e: ObdConnection.ObdTimeout) { null }
             if (c.header.isNotBlank()) conn.resetHeader()
             if (bytes != null) values[c.key] = runCatching { expr.eval(bytes) }.getOrDefault(Double.NaN)
         }

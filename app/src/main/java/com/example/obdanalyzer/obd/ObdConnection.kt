@@ -109,9 +109,18 @@ class ObdConnection {
                 }
             }
             note("$cmd → délai dépassé (${timeoutMs} ms)${if (sb.isNotEmpty()) " : " + sb.toString().replace('\r', ' ').trim() else ""}")
-            throw IOException("Délai dépassé pour $cmd")
+            // Resynchronisation : on laisse le boîtier finir (ou s'interrompre) pour que la réponse en retard
+            // ne se mélange pas à la commande suivante
+            val end = System.currentTimeMillis() + 400
+            while (System.currentTimeMillis() < end) {
+                if (input.available() > 0) { if (input.read() == '>'.code) break } else delay(5)
+            }
+            throw ObdTimeout("Délai dépassé pour $cmd")
         }
     }
+
+    /** Le boîtier est là mais une requête n'a pas eu de réponse à temps (calculateur occupé, mesure non gérée). */
+    class ObdTimeout(msg: String) : IOException(msg)
 
     /** En-tête par défaut après une requête vers un calculateur précis. */
     suspend fun resetHeader() {
