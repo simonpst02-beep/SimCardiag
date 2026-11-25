@@ -96,6 +96,12 @@ class ObdConnection {
         isStn = try { ObdParser.clean(send("STI")).contains("STN") } catch (e: IOException) { false }
         if (!isStn) isStn = try { ObdParser.clean(send("AT@1")).contains("OBDLINK") } catch (e: IOException) { false }
         log(if (isStn) "Boîtier OBDLink (puce STN) : mode rapide" else "Boîtier ELM327 standard", 1)
+        // Diagnostic des coupures : le boîtier dit s'il s'est mis en veille et pourquoi (tension, inactivité…),
+        // et quels déclencheurs de veille sont actifs. Tout est noté dans le journal technique.
+        if (isStn) {
+            runCatching { send("STSLLT", 2000) }
+            runCatching { send("STSLCS", 2000) }
+        }
         for (c in listOf("ATE0", "ATL0", "ATS0", "ATH0", "ATSP0")) send(c)
         // Minutage adaptatif normal : le mode agressif (ATAT2) fait rater des réponses des calculateurs lents (Opel / GM)
         send(if (legacy && isStn) "ATAT2" else "ATAT1")
