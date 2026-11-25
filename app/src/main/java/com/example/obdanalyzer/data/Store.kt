@@ -76,6 +76,7 @@ class Store(private val context: Context) {
             dangerZones = o.optBoolean("dangerZones", false),
             maintNotif = o.optBoolean("maintNotif", true),
             mediaButtons = o.optBoolean("mediaButtons", false),
+            shiftRpm = o.optInt("shiftRpm", 0),
             spotifyButton = o.optBoolean("spotifyButton", false),
             githubToken = o.optString("githubToken", ""),
         )
@@ -95,7 +96,7 @@ class Store(private val context: Context) {
             .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
             .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)
             .put("layoutMode", s.layoutMode.name).put("voiceAlerts", s.voiceAlerts).put("shiftLight", s.shiftLight)
-            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("showHealth", s.showHealth).put("gpsCorrect", s.gpsCorrect).put("dangerZones", s.dangerZones).put("maintNotif", s.maintNotif).put("mediaButtons", s.mediaButtons).put("spotifyButton", s.spotifyButton)
+            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("showHealth", s.showHealth).put("gpsCorrect", s.gpsCorrect).put("dangerZones", s.dangerZones).put("maintNotif", s.maintNotif).put("mediaButtons", s.mediaButtons).put("shiftRpm", s.shiftRpm).put("spotifyButton", s.spotifyButton)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 

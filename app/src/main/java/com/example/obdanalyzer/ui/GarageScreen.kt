@@ -341,8 +341,19 @@ private fun AlertsCard(s: Settings) {
         SwitchRow("Alertes vocales", "Une voix lit l'alerte (« Température moteur élevée »…) au lieu du bip", s.voiceAlerts) { v ->
             ObdManager.updateSettings { it.copy(voiceAlerts = v) }
         }
-        SwitchRow("Témoin de passage de vitesse", "Rangée de voyants en mode conduite, qui clignote au régime d'alerte", s.shiftLight) { v ->
+        SwitchRow("Témoin de passage de vitesse", "Bande de voyants en mode conduite : verte au ralenti, orange puis rouge en montant, elle clignote au régime de passage", s.shiftLight) { v ->
             ObdManager.updateSettings { it.copy(shiftLight = v) }
+        }
+        if (s.shiftLight) {
+            val cur = if (s.shiftRpm > 0) s.shiftRpm else 0
+            Text("Régime de passage : " + (if (cur == 0) "automatique (2 500 tr/min en diesel, 3 000 en essence)" else "${ObdManager.fmt(cur.toDouble())} tr/min"),
+                style = MaterialTheme.typography.bodySmall)
+            Slider(value = (if (cur == 0) 1500 else cur).toFloat(), onValueChange = { x ->
+                val r = (x / 100).roundToInt() * 100
+                ObdManager.updateSettings { it.copy(shiftRpm = if (r <= 1500) 0 else r) }
+            }, valueRange = 1500f..6500f, steps = 49)
+            Text("Tout à gauche = automatique. Conduite économique : 2 000 à 2 500 tr/min en diesel.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SwitchRow("Zones de danger", "Annonce les zones de radars fixes (300 m en ville, 2 km sur route, 4 km sur autoroute), sans leur position exacte, comme Coyote ou Waze. Besoin du GPS ; liste officielle téléchargée une fois par mois.", s.dangerZones) { v ->
             ObdManager.updateSettings { it.copy(dangerZones = v) }

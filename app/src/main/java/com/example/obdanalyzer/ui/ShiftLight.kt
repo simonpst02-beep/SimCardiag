@@ -23,8 +23,8 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun ShiftLight(rpm: Double?, limit: Int, modifier: Modifier = Modifier, height: Dp = 18.dp, leds: Int = 10) {
-    // s'allume dès 40 % du régime d'alerte (ex. 1 800 tr/min pour 4 500) pour suivre la conduite normale
-    val start = limit * 0.4
+    // part du ralenti (900 tr/min) : la bande bouge dès qu'on accélère, et tout clignote au régime de passage
+    val start = 900.0.coerceAtMost(limit * 0.6)
     val frac = if (rpm == null) 0.0 else ((rpm - start) / (limit - start)).coerceIn(0.0, 1.0)
     val lit = (frac * leds).let { kotlin.math.ceil(it).toInt() }
     val over = rpm != null && rpm >= limit
@@ -44,3 +44,8 @@ fun ShiftLight(rpm: Double?, limit: Int, modifier: Modifier = Modifier, height: 
         }
     }
 }
+
+
+/** Régime de passage : réglé par l'utilisateur, sinon 2 500 tr/min en diesel et 3 000 en essence. */
+fun shiftRpmFor(s: com.example.obdanalyzer.core.Settings, v: com.example.obdanalyzer.core.Vehicle): Int =
+    if (s.shiftRpm > 0) s.shiftRpm else if (v.fuel == com.example.obdanalyzer.core.Fuel.DIESEL) 2500 else 3000

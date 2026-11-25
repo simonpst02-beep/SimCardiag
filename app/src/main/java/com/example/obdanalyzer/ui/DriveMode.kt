@@ -52,7 +52,7 @@ fun DriveMode(l: Live, v: Vehicle, s: Settings, onExit: () -> Unit) {
             }
             if (!landscape && (s.mediaButtons || s.spotifyButton)) MediaBar(Modifier.fillMaxWidth(), size = 52.dp)
             if (s.shiftLight && l.values.containsKey("rpm"))
-                ShiftLight(l.values["rpm"], s.rpmLimit, Modifier.fillMaxWidth(), height = if (compact) 14.dp else 26.dp, leds = 12)
+                ShiftLight(l.values["rpm"], shiftRpmFor(s, v), Modifier.fillMaxWidth(), height = if (compact) 14.dp else 26.dp, leds = 12)
             if (alert != null) {
                 val c = levelColor(alert.level)
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(if (compact) 14.dp else 20.dp)).background(c)

@@ -177,7 +177,7 @@ fun ColumnScope.WidgetContent(w: WidgetCfg, l: Live, v: Vehicle, onTab: (Int) ->
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         "shift" -> {
-            val lim = ObdManager.settings.value.rpmLimit
+            val lim = shiftRpmFor(ObdManager.settings.value, v)
             WidgetTitle(Icons.Rounded.Speed, LocalObd.current.engine, "Passage de vitesse")
             ShiftLight(l.values["rpm"], lim, Modifier.fillMaxWidth(), height = 28.dp, leds = 12)
             Text("${l.values["rpm"]?.let { ObdManager.fmt(it) } ?: "—"} tr/min · clignote à $lim tr/min",
