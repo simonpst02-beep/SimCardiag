@@ -47,11 +47,11 @@ class ObdConnection {
      * elle ralentit fortement le débit et fait décrocher les boîtiers OBD (les autoradios en lancent souvent seuls).
      * Renvoie true si une recherche était en cours.
      */
-    @android.annotation.SuppressLint("MissingPermission")
     fun stopDiscovery(adapter: android.bluetooth.BluetoothAdapter?): Boolean = runCatching {
         if (adapter?.isDiscovering == true) { adapter.cancelDiscovery(); true } else false
     }.getOrDefault(false)
 
+    @SuppressLint("MissingPermission")
     suspend fun open(device: BluetoothDevice, adapter: android.bluetooth.BluetoothAdapter? = null) = withContext(Dispatchers.IO) {
         close()
         physical = false
