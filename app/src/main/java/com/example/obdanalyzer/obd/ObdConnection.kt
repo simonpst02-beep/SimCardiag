@@ -69,10 +69,29 @@ class ObdConnection {
     /** Ancienne méthode (2.0.35) : minutage agressif sur OBDLink, protocole non figé. */
     var legacy = false
 
+    /**
+     * Vide tout ce qui arrive encore du boîtier, jusqu'à 400 ms de calme (3 s au plus).
+     * Après un blocage Bluetooth, des réponses en retard peuvent arriver d'un coup (ex. « ATZ → 410D00 ») :
+     * sans ce nettoyage, toutes les réponses suivantes sont décalées d'un cran.
+     */
+    suspend fun settle(quietMs: Long = 400, maxMs: Long = 3000): Int = withContext(Dispatchers.IO) {
+        val input = socket?.inputStream ?: return@withContext 0
+        var n = 0
+        val end = System.currentTimeMillis() + maxMs
+        var lastByte = System.currentTimeMillis()
+        while (System.currentTimeMillis() < end && System.currentTimeMillis() - lastByte < quietMs) {
+            if (input.available() > 0) { input.read(); n++; lastByte = System.currentTimeMillis() } else delay(10)
+        }
+        if (n > 0) note("$n octets en retard ignorés (réponses d'avant la coupure)")
+        n
+    }
+
     suspend fun initialize(log: (String, Int) -> Unit) {
+        settle()
         val id = send("ATZ", 5000)
         log("ATZ → ${ObdParser.clean(id).trim()}", 1)
         delay(800)
+        settle()
         // Puce STN (OBDLink MX, MX+, LX…) : STI répond « STN1110… », AT@1 répond « OBDLink … »
         isStn = try { ObdParser.clean(send("STI")).contains("STN") } catch (e: IOException) { false }
         if (!isStn) isStn = try { ObdParser.clean(send("AT@1")).contains("OBDLINK") } catch (e: IOException) { false }

@@ -359,7 +359,13 @@ object ObdManager {
         val codes = mutableSetOf<String>()
         var base = 0x00
         while (base <= 0x40) {
-            val set = ObdParser.parseSupported(conn.send("01%02X".format(base), 5000), base)
+            // jusqu'à 3 essais : une réponse décalée ou vide ne doit pas réduire la liste à 3 mesures
+            var set = emptySet<String>()
+            for (attempt in 1..3) {
+                set = runCatching { ObdParser.parseSupported(conn.send("01%02X".format(base), 5000), base) }.getOrDefault(emptySet())
+                if (set.isNotEmpty()) break
+                conn.settle()
+            }
             codes += set
             if ("%02X".format(base + 0x20) !in set) break
             base += 0x20
