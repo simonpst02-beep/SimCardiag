@@ -97,11 +97,16 @@ class ObdConnection {
         protocol = ObdParser.clean(send("ATDP")).replace("\r", " ").replace("AUTO,", "").trim()
     }
 
+    private var lastEnd = 0L
+
     suspend fun send(cmd: String, timeoutMs: Long = 4000): String = mutex.withLock {
         withContext(Dispatchers.IO) {
             val s = socket ?: throw IOException("Non connecté")
             val input = s.inputStream
             val output = s.outputStream
+            // petit intervalle entre deux commandes : ménage les liaisons Bluetooth fragiles (autoradios)
+            val gap = 25 - (System.currentTimeMillis() - lastEnd)
+            if (gap > 0) delay(gap)
             while (input.available() > 0) input.read()
             output.write("$cmd\r".toByteArray())
             output.flush()
@@ -113,6 +118,7 @@ class ObdConnection {
                     if (b < 0) throw IOException("Flux fermé")
                     if (b == '>'.code) {
                         note("$cmd → ${sb.toString().replace('\r', ' ').trim()}")
+                        lastEnd = System.currentTimeMillis()
                         return@withContext sb.toString()
                     }
                     sb.append(b.toChar())
@@ -139,8 +145,11 @@ class ObdConnection {
 
     /** En-tête par défaut après une requête vers un calculateur précis. */
     suspend fun resetHeader() {
-        if (physical) { send("ATSH7E0"); send("ATCRA7E8"); return }
+        // ATAR (réception automatique) et non « ATCRA » sans adresse : sur certains boîtiers, ce dernier ouvre le filtre
+        // à tout le trafic de la voiture, ce qui sature le boîtier et le Bluetooth
+        if (physical) { send("ATSH7E0"); send("ATAR"); return }
         send(if (isCan) "ATSH7DF" else "ATSH686AF1")
+        if (isCan) runCatching { send("ATAR") }
     }
 
     fun close() {

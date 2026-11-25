@@ -340,7 +340,8 @@ object ObdManager {
         }
         if (!conn.legacy && conn.isCan && conn.protoNum in listOf('6', '8')) {
             runCatching {
-                conn.send("ATSH7E0"); conn.send("ATCRA7E8")
+                // ATSH7E0 seul : en réception automatique (ATAR), le boîtier écoute 7E8 tout seul
+                conn.send("ATSH7E0")
                 // 2 essais avec 0100 (toujours géré) : la première réponse peut être lente juste après le changement d'adresse
                 var ok = false
                 for (i in 1..2) {
@@ -349,7 +350,7 @@ object ObdManager {
                     delay(300)
                 }
                 if (ok) { conn.physical = true; conn.note("Dialogue direct avec le calculateur moteur (7E0/7E8)") }
-                else { conn.send("ATCRA"); conn.send("ATSH7DF"); conn.note("Calculateur moteur pas en 7E0 : dialogue général conservé") }
+                else { conn.send("ATSH7DF"); conn.send("ATAR"); conn.note("Calculateur moteur pas en 7E0 : dialogue général conservé") }
             }
         }
     }
@@ -950,7 +951,7 @@ object ObdManager {
         try {
             delay(150)
             // Diagnostic rapide : on interroge toute la voiture (7DF), pour voir aussi les codes de la boîte automatique
-            if (conn.physical) { conn.send("ATCRA"); conn.send("ATSH7DF") }
+            if (conn.physical) { conn.send("ATSH7DF"); conn.send("ATAR") }
             try {
                 repeat(2) { try { return conn.send(mode, 6000) } catch (e: ObdConnection.ObdTimeout) { } }
             } finally { if (conn.physical) runCatching { conn.resetHeader() } }
