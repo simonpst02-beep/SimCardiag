@@ -845,10 +845,10 @@ object ObdManager {
         scope.launch {
             _live.update { it.copy(diagLoading = true) }
             try {
-                val dtcs = ObdParser.parseDtcs(conn.send("03", 8000), conn.isCan, "43").map { ObdParser.explain(it) }
-                val pending = ObdParser.parseDtcs(conn.send("07", 8000), conn.isCan, "47")
+                val dtcs = ObdParser.parseDtcs(askDtc("03"), conn.isCan, "43").map { ObdParser.explain(it) }
+                val pending = runCatching { ObdParser.parseDtcs(askDtc("07"), conn.isCan, "47") }.getOrDefault(emptyList())
                     .filterNot { p -> dtcs.any { it.code == p } }.map { ObdParser.explain(it) }
-                val ready = ObdParser.parseReadiness(conn.send("0101", 4000))
+                val ready = runCatching { ObdParser.parseReadiness(conn.send("0101", 4000)) }.getOrNull()
                 var freeze: FreezeFrame? = null
                 if (dtcs.isNotEmpty()) {
                     val fd = ObdParser.parseFreezeDtc(conn.send("020200", 4000))
@@ -866,6 +866,24 @@ object ObdManager {
                 _live.update { it.copy(diagLoading = false, message = "Lecture impossible : ${e.message}") }
             }
         }
+    }
+
+    /**
+     * Demande des codes défaut (mode 03 ou 07), avec la lecture en continu mise en pause.
+     * Si personne ne répond à la demande générale, on interroge directement le calculateur moteur (7E0).
+     */
+    private suspend fun askDtc(mode: String): String {
+        val was = pollPaused
+        pollPaused = true
+        try {
+            delay(150)
+            repeat(2) { try { return conn.send(mode, 6000) } catch (e: ObdConnection.ObdTimeout) { } }
+            if (conn.isCan) {
+                conn.note("Pas de réponse à $mode : demande directe au calculateur moteur")
+                try { conn.send("ATSH7E0"); return conn.send(mode, 6000) } finally { runCatching { conn.resetHeader() } }
+            }
+            throw IOException("Le calculateur moteur ne répond pas à la demande des codes défaut ($mode)")
+        } finally { pollPaused = was }
     }
 
     fun clearDtcs() {

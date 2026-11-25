@@ -63,7 +63,8 @@ class ObdConnection {
         if (!isStn) isStn = try { ObdParser.clean(send("AT@1")).contains("OBDLINK") } catch (e: IOException) { false }
         log(if (isStn) "Boîtier OBDLink (puce STN) : mode rapide" else "Boîtier ELM327 standard", 1)
         for (c in listOf("ATE0", "ATL0", "ATS0", "ATH0", "ATSP0")) send(c)
-        send(if (isStn) "ATAT2" else "ATAT1")
+        // Minutage adaptatif normal : le mode agressif (ATAT2) fait rater des réponses des calculateurs lents (Opel / GM)
+        send("ATAT1")
         log("ATE0 ATL0 ATS0 ATH0 ATSP0 → OK", 2)
         // Recherche du protocole : le calculateur peut mettre quelques secondes à se réveiller après le contact
         var found = false
@@ -75,13 +76,20 @@ class ObdConnection {
         }
         if (!found) throw IOException("La voiture ne répond pas : vérifiez que le contact est mis, puis réessayez.")
         refreshProtocol()
+        // On fige le protocole trouvé : sinon, à la moindre absence de réponse, le boîtier relance une recherche
+        // de plusieurs secondes et l'appli croit la connexion perdue (déconnexions / reconnexions en boucle)
+        protoNum?.let { n -> runCatching { send("ATSP$n") }; note("Protocole figé : ATSP$n") }
         log("Protocole : $protocol", 3)
     }
+
+    /** Numéro du protocole trouvé (ex. « 6 » = CAN 11 bits 500 kbit/s), pour le figer. */
+    var protoNum: Char? = null; private set
 
     /** Relit le protocole trouvé par l'adaptateur. */
     suspend fun refreshProtocol() {
         val dp = ObdParser.clean(send("ATDPN")).filter { it.isLetterOrDigit() }
         isCan = dp.lastOrNull()?.let { it in "6789ABC" } ?: false
+        protoNum = dp.lastOrNull()?.takeIf { it in "123456789ABC" }
         protocol = ObdParser.clean(send("ATDP")).replace("\r", " ").replace("AUTO,", "").trim()
     }
 
