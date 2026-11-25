@@ -44,6 +44,7 @@ class ObdConnection {
     @SuppressLint("MissingPermission")
     suspend fun open(device: BluetoothDevice) = withContext(Dispatchers.IO) {
         close()
+        physical = false
         val s = try {
             device.createRfcommSocketToServiceRecord(SPP_UUID).also { it.connect() }
         } catch (e: IOException) {
@@ -130,8 +131,12 @@ class ObdConnection {
     /** Le boîtier est là mais une requête n'a pas eu de réponse à temps (calculateur occupé, mesure non gérée). */
     class ObdTimeout(msg: String) : IOException(msg)
 
+    /** true : on parle directement au calculateur moteur (7E0) avec filtre de réception 7E8. */
+    var physical = false
+
     /** En-tête par défaut après une requête vers un calculateur précis. */
     suspend fun resetHeader() {
+        if (physical) { send("ATSH7E0"); send("ATCRA7E8"); return }
         send(if (isCan) "ATSH7DF" else "ATSH686AF1")
     }
 

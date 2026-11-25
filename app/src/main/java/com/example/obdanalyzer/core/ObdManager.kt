@@ -311,6 +311,33 @@ object ObdManager {
         }
         multiFails = 0
         if (vin != null) matchVehicle(vin)
+        detectFuelAndTarget()
+    }
+
+    /**
+     * 1. Diesel ou essence : la voiture l'indique dans 0101 (bit « allumage par compression »).
+     *    Le carburant du véhicule est corrigé tout seul, ce qui change complètement le calcul de consommation.
+     * 2. Sur CAN, on parle directement au calculateur moteur (7E0 → 7E8) au lieu de toute la voiture (7DF) :
+     *    une seule réponse par question, plus de réponses en retard d'un autre calculateur qui décalent tout.
+     */
+    private suspend fun detectFuelAndTarget() {
+        runCatching {
+            val r = ObdParser.parseReadiness(conn.send("0101", 3000))
+            val v = activeVehicle()
+            if (r != null && r.diesel && v.fuel != Fuel.DIESEL) {
+                updateVehicle(v.id) { it.copy(fuel = Fuel.DIESEL) }
+                conn.note("Moteur diesel détecté : carburant du véhicule réglé sur Diesel")
+                _live.update { it.copy(message = "Moteur diesel détecté : carburant réglé sur Diesel. Vérifiez la cylindrée dans Garage (1,3 pour une Corsa 1.3 CDTI).") }
+            }
+        }
+        if (conn.isCan && conn.protoNum in listOf('6', '8')) {
+            runCatching {
+                conn.send("ATSH7E0"); conn.send("ATCRA7E8")
+                val ok = ObdParser.parseMode01(conn.send("010C", 2000), "0C", 2) != null
+                if (ok) { conn.physical = true; conn.note("Dialogue direct avec le calculateur moteur (7E0/7E8)") }
+                else { conn.send("ATCRA"); conn.send("ATSH7DF"); conn.note("Calculateur moteur pas en 7E0 : dialogue général conservé") }
+            }
+        }
     }
 
     private suspend fun detectSupported(): List<Pid> {
@@ -423,6 +450,7 @@ object ObdManager {
                     if (loop % 4 == 0) readCustom(values)
                     else activeVehicle().customPids.forEach { c -> _live.value.values[c.key]?.let { values[c.key] = it } }
                     true
+                } catch (e: BoxSilent) { onConnectionLost(); return@launch
                 } catch (e: IOException) { false }
 
                 if (!ok) {
@@ -489,15 +517,29 @@ object ObdManager {
                 }
             }
         } else {
+            var inARow = 0
             for (p in pids) {
-                val raw = try { conn.send("01${p.code}", 1200) } catch (e: ObdConnection.ObdTimeout) { timeouts++; miss(p.code); continue }
+                val raw = try { conn.send("01${p.code}", 1200).also { inARow = 0 } } catch (e: ObdConnection.ObdTimeout) {
+                    timeouts++; inARow++; miss(p.code)
+                    // deux silences de suite : on vérifie tout de suite que le boîtier répond encore
+                    if (inARow >= 2) { checkBox(); inARow = 0 }
+                    continue
+                }
                 val bytes = ObdParser.parseMode01(raw, p.code, p.bytes)
                 if (bytes != null) { values[p.def.key] = p.decode(bytes); pidMiss.remove(p.code); answered++ } else miss(p.code)
             }
         }
         // Plus rien ne répond (et ce n'est pas juste « moteur coupé ») : on vérifie que le boîtier est encore là
-        if (answered == 0 && timeouts > 0) {
-            try { conn.send("ATRV", 1500) } catch (e: ObdConnection.ObdTimeout) { throw IOException("Le boîtier ne répond plus") }
+        if (answered == 0 && timeouts > 0) checkBox()
+    }
+
+    /** Le boîtier lui-même est muet (liaison Bluetooth tombée) : reconnexion immédiate, sans attendre. */
+    class BoxSilent : IOException("Le boîtier ne répond plus")
+
+    private suspend fun checkBox() {
+        try { conn.send("ATRV", 1200) } catch (e: ObdConnection.ObdTimeout) {
+            conn.note("Le boîtier ne répond plus du tout : liaison Bluetooth probablement coupée, reconnexion")
+            throw BoxSilent()
         }
     }
 
@@ -712,7 +754,7 @@ object ObdManager {
         _live.update { it.copy(conn = Conn.RECONNECTING, message = null) }
         pollJob = scope.launch {
             val until = System.currentTimeMillis() + 5 * 60_000
-            var wait = 2000L
+            var wait = 500L
             while (isActive && System.currentTimeMillis() < until) {
                 delay(wait)
                 try {
@@ -724,7 +766,7 @@ object ObdManager {
                     return@launch
                 } catch (e: Exception) {
                     conn.close()
-                    wait = minOf(wait * 2, 15_000)
+                    wait = if (wait < 2000) 2000 else minOf(wait * 2, 15_000)
                 }
             }
             endSession("Le boîtier ne répond plus. Trajet enregistré dans l'historique.")

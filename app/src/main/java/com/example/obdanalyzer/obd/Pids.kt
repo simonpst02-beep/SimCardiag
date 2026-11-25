@@ -42,6 +42,13 @@ object Pids {
         p("06", "stft", "Correction carburant court terme", "%", -25.0, 25.0, Family.ENGINE, 1) { (it[0] - 128) * 100 / 128.0 },
         p("07", "ltft", "Correction carburant long terme", "%", -25.0, 25.0, Family.ENGINE, 1) { (it[0] - 128) * 100 / 128.0 },
         p("44", "lambda", "Richesse demandée (lambda)", "", 0.5, 2.0, Family.ENGINE, 2) { (it[0] * 256 + it[1]) * 2 / 65536.0 },
+        // Mesures présentes sur la Corsa D 1.3 CDTI (et beaucoup d'autres diesels)
+        p("23", "rail", "Pression rail injection", "bar", 0.0, 1800.0, Family.ENGINE, 2) { (it[0] * 256 + it[1]) * 10 / 100.0 },
+        p("2C", "egr", "Vanne EGR demandée", "%", 0.0, 100.0, Family.ENGINE, 1) { it[0] * 100 / 255.0 },
+        p("33", "baro", "Pression atmosphérique", "kPa", 70.0, 110.0, Family.ENGINE, 1) { it[0].toDouble() },
+        p("42", "ecuv", "Tension calculateur", "V", 9.0, 16.0, Family.ENERGY, 2) { (it[0] * 256 + it[1]) / 1000.0 },
+        p("49", "pedal", "Pédale d'accélérateur", "%", 0.0, 100.0, Family.ENGINE, 1) { it[0] * 100 / 255.0 },
+        p("21", "milkm", "Distance voyant allumé", "km", 0.0, 5000.0, Family.ENGINE, 2) { (it[0] * 256 + it[1]).toDouble() },
         p("5E", "fuelrate", "Débit carburant", "L/h", 0.0, 30.0, Family.ENERGY, 2) { (it[0] * 256 + it[1]) / 20.0 },
         // Filtre à particules (diesel récents) : octet A = capteurs présents, puis banc 1
         p("7A", "dpfp", "FAP · pression diff.", "kPa", 0.0, 30.0, Family.TEMP, 7) { (it[1] * 256 + it[2]) / 100.0 },
