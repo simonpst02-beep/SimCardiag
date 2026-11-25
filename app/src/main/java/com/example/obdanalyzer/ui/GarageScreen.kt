@@ -399,6 +399,9 @@ private fun AlertsCard(s: Settings) {
 @Composable
 private fun SettingsCard(s: Settings) {
     SectionCard(Icons.Rounded.Bluetooth, MaterialTheme.colorScheme.primary, "Connexion et suivi") {
+        SwitchRow("Connexion comme avant (méthode d'hier soir)",
+            "Revient à la façon de dialoguer de la version 2.0.35 : protocole non figé, dialogue avec toute la voiture, délais longs. Utile pour comparer si la nouvelle méthode décroche. Prend effet à la prochaine connexion.",
+            s.legacyLink) { v -> ObdManager.updateSettings { it.copy(legacyLink = v) } }
         SwitchRow("Reconnexion automatique", "Se reconnecte seul au boîtier après une coupure et à l'ouverture de l'appli", s.autoReconnect) { v ->
             ObdManager.updateSettings { it.copy(autoReconnect = v) }
         }

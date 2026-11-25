@@ -173,7 +173,9 @@ data class Settings(
     // Sécurité
     val voiceAlerts: Boolean = false,
     val shiftLight: Boolean = true,
-    val shiftRpm: Int = 0,                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
+    val shiftRpm: Int = 0,
+    /** Connexion « comme hier soir » (méthode de la 2.0.35) : recherche de protocole libre, dialogue général, délais longs. */
+    val legacyLink: Boolean = false,                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
     val drivingLock: Boolean = true,
     val showHealth: Boolean = true,           // carte « État du véhicule » sur l'accueil
     // GPS

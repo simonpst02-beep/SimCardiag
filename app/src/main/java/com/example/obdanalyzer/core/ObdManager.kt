@@ -300,6 +300,7 @@ object ObdManager {
 
     @SuppressLint("MissingPermission")
     private suspend fun openAndInit(device: android.bluetooth.BluetoothDevice) {
+        conn.legacy = _settings.value.legacyLink
         conn.open(device)
         addLog("Bluetooth connecté", 1)
         conn.initialize { line, step -> addLog(line, step) }
@@ -314,7 +315,7 @@ object ObdManager {
         detectFuelAndTarget()
         // Lecture groupée seulement en dialogue direct avec le calculateur moteur : en dialogue général,
         // plusieurs calculateurs répondent en même temps (réponses longues et mélangées, boîtier saturé)
-        _live.update { it.copy(multi = conn.isCan && conn.physical) }
+        _live.update { it.copy(multi = if (conn.legacy) conn.isCan else conn.isCan && conn.physical) }
     }
 
     /**
@@ -337,7 +338,7 @@ object ObdManager {
                 _live.update { it.copy(message = "Moteur diesel détecté : carburant réglé sur Diesel. Vérifiez la cylindrée dans Garage (1,3 pour une Corsa 1.3 CDTI).") }
             }
         }
-        if (conn.isCan && conn.protoNum in listOf('6', '8')) {
+        if (!conn.legacy && conn.isCan && conn.protoNum in listOf('6', '8')) {
             runCatching {
                 conn.send("ATSH7E0"); conn.send("ATCRA7E8")
                 // 2 essais avec 0100 (toujours géré) : la première réponse peut être lente juste après le changement d'adresse
@@ -468,7 +469,8 @@ object ObdManager {
 
                 if (!ok) {
                     fails++
-                    if (fails >= 3) { conn.note("3 échecs de suite : connexion perdue"); onConnectionLost(); return@launch }
+                    val max = if (conn.legacy) 5 else 4
+                    if (fails >= max) { conn.note("$max échecs de suite : connexion perdue"); onConnectionLost(); return@launch }
                     delay(300)
                     continue
                 }
@@ -511,6 +513,7 @@ object ObdManager {
      * - la connexion n'est déclarée perdue que si plus rien ne répond.
      */
     private suspend fun readStandard(values: HashMap<String, Double>) {
+        if (conn.legacy) { readStandardLegacy(values); return }
         pollLoop++
         val fast = fastKeys()
         val pids = _live.value.supported.filter { it.code !in pidSkipped && (it.def.key in fast || pollLoop % 8 == 0) }
@@ -519,7 +522,7 @@ object ObdManager {
         var timeouts = 0
         if (_live.value.multi) {
             for (chunk in pids.chunked(6)) {
-                val raw = try { conn.send("01" + chunk.joinToString("") { it.code }, 1500) }
+                val raw = try { conn.send("01" + chunk.joinToString("") { it.code }, 3000) }
                     catch (e: ObdConnection.ObdTimeout) { timeouts++; multiFails++; if (multiFails >= 3) _live.update { it.copy(multi = false) }; continue }
                 val parsed = ObdParser.parseMulti(raw, chunk)
                 if (parsed.isNotEmpty()) answered++
@@ -532,7 +535,7 @@ object ObdManager {
         } else {
             var inARow = 0
             for (p in pids) {
-                val raw = try { conn.send("01${p.code}", 1200).also { inARow = 0 } } catch (e: ObdConnection.ObdTimeout) {
+                val raw = try { conn.send("01${p.code}", 2500).also { inARow = 0 } } catch (e: ObdConnection.ObdTimeout) {
                     timeouts++; inARow++; miss(p.code)
                     // deux silences de suite : on vérifie tout de suite que le boîtier répond encore
                     if (inARow >= 2) { checkBox(); inARow = 0 }
@@ -549,11 +552,25 @@ object ObdManager {
     /** Le boîtier lui-même est muet (liaison Bluetooth tombée) : reconnexion immédiate, sans attendre. */
     class BoxSilent : IOException("Le boîtier ne répond plus")
 
+    /** Le boîtier n'est déclaré perdu qu'après 2 vérifications muettes de suite (plus de 6 s de silence). */
     private suspend fun checkBox() {
-        try { conn.send("ATRV", 1200) } catch (e: ObdConnection.ObdTimeout) {
-            conn.note("Le boîtier ne répond plus du tout : liaison Bluetooth probablement coupée, reconnexion")
-            throw BoxSilent()
+        for (i in 1..2) {
+            try { conn.send("ATRV", 3000); return } catch (e: ObdConnection.ObdTimeout) { conn.note("Boîtier muet (vérification $i/2)") }
         }
+        conn.note("Le boîtier ne répond plus du tout : liaison Bluetooth probablement coupée, reconnexion")
+        throw BoxSilent()
+    }
+
+    /** Lecture comme en 2.0.35 : toutes les mesures à chaque tour, 4 s d'attente, une absence de réponse = tour raté. */
+    private suspend fun readStandardLegacy(values: HashMap<String, Double>) {
+        val pids = _live.value.supported
+        if (_live.value.multi) {
+            for (chunk in pids.chunked(6)) {
+                val parsed = ObdParser.parseMulti(conn.send("01" + chunk.joinToString("") { it.code }), chunk)
+                for (p in chunk) parsed[p.code]?.let { values[p.def.key] = p.decode(it) }
+                if (parsed.size * 2 < chunk.size) { multiFails++; if (multiFails >= 3) _live.update { it.copy(multi = false) } }
+            }
+        } else for (p in pids) ObdParser.parseMode01(conn.send("01${p.code}"), p.code, p.bytes)?.let { values[p.def.key] = p.decode(it) }
     }
 
     private fun miss(code: String) {
@@ -1359,6 +1376,7 @@ object ObdManager {
         val head = listOf(
             "SimCarDiag ${Updater.currentName(ctx)} · ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} · Android ${android.os.Build.VERSION.RELEASE}",
             "Boîtier : ${l.device ?: "—"} · état : ${l.conn} · protocole : ${l.protocol.ifEmpty { "—" }} · STN : ${l.isStn} · lecture groupée : ${l.multi}",
+            "Méthode : ${if (_settings.value.legacyLink) "comme hier soir (2.0.35)" else "nouvelle"} · dialogue direct moteur : ${conn.physical}",
             "Capteurs : ${l.supported.joinToString(" ") { it.code }.ifEmpty { "—" }}",
             "Véhicule : ${activeVehicle().name} ${activeVehicle().vin ?: ""}",
             "",

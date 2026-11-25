@@ -55,6 +55,9 @@ class ObdConnection {
     }
 
     /** Initialise l'adaptateur. [log] reçoit chaque échange pour l'écran « Détails techniques ». */
+    /** Ancienne méthode (2.0.35) : minutage agressif sur OBDLink, protocole non figé. */
+    var legacy = false
+
     suspend fun initialize(log: (String, Int) -> Unit) {
         val id = send("ATZ", 5000)
         log("ATZ → ${ObdParser.clean(id).trim()}", 1)
@@ -65,7 +68,7 @@ class ObdConnection {
         log(if (isStn) "Boîtier OBDLink (puce STN) : mode rapide" else "Boîtier ELM327 standard", 1)
         for (c in listOf("ATE0", "ATL0", "ATS0", "ATH0", "ATSP0")) send(c)
         // Minutage adaptatif normal : le mode agressif (ATAT2) fait rater des réponses des calculateurs lents (Opel / GM)
-        send("ATAT1")
+        send(if (legacy && isStn) "ATAT2" else "ATAT1")
         log("ATE0 ATL0 ATS0 ATH0 ATSP0 → OK", 2)
         // Recherche du protocole : le calculateur peut mettre quelques secondes à se réveiller après le contact
         var found = false
@@ -79,7 +82,7 @@ class ObdConnection {
         refreshProtocol()
         // On fige le protocole trouvé : sinon, à la moindre absence de réponse, le boîtier relance une recherche
         // de plusieurs secondes et l'appli croit la connexion perdue (déconnexions / reconnexions en boucle)
-        protoNum?.let { n -> runCatching { send("ATSP$n") }; note("Protocole figé : ATSP$n") }
+        if (!legacy) protoNum?.let { n -> runCatching { send("ATSP$n") }; note("Protocole figé : ATSP$n") }
         log("Protocole : $protocol", 3)
     }
 
