@@ -93,6 +93,8 @@ data class Vehicle(
     val parkLat: Double? = null,
     val parkLon: Double? = null,
     val parkAt: Long = 0,
+    /** Le carburant a déjà été détecté automatiquement une fois : ensuite, on respecte le choix de l'utilisateur. */
+    val fuelAutoSet: Boolean = false,
 )
 
 data class TripSummary(

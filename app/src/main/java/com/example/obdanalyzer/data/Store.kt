@@ -117,7 +117,7 @@ class Store(private val context: Context) {
         .put("tankL", v.tankL).put("odometerKm", v.odometerKm).put("preset", v.preset)
         .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor).put("engineL", v.engineL).put("fuelRefL", v.fuelRefL ?: -1.0).put("fuelRefAt", v.fuelRefAt).put("speedFactor", v.speedFactor).put("speedSampleKm", v.speedSampleKm)
         .put("crankHistory", JSONArray(v.crankHistory)).put("lastCrankAt", v.lastCrankAt)
-        .put("parkLat", v.parkLat ?: 999.0).put("parkLon", v.parkLon ?: 999.0).put("parkAt", v.parkAt)
+        .put("parkLat", v.parkLat ?: 999.0).put("parkLon", v.parkLon ?: 999.0).put("parkAt", v.parkAt).put("fuelAutoSet", v.fuelAutoSet)
         .put("layout", JSONArray().apply { v.layout.forEach { put(JSONObject().put("k", it.kind).put("m", it.metric ?: "").put("w", it.wide)) } })
         .put("maintenance", JSONArray().apply {
             v.maintenance.forEach {
@@ -180,6 +180,7 @@ class Store(private val context: Context) {
             parkLat = o.optDouble("parkLat", 999.0).takeIf { it < 900 },
             parkLon = o.optDouble("parkLon", 999.0).takeIf { it < 900 },
             parkAt = o.optLong("parkAt", 0),
+            fuelAutoSet = o.optBoolean("fuelAutoSet", false),
         )
         return if (layout != null) base.copy(layout = layout) else base
     }

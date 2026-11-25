@@ -312,6 +312,9 @@ object ObdManager {
         multiFails = 0
         if (vin != null) matchVehicle(vin)
         detectFuelAndTarget()
+        // Lecture groupée seulement en dialogue direct avec le calculateur moteur : en dialogue général,
+        // plusieurs calculateurs répondent en même temps (réponses longues et mélangées, boîtier saturé)
+        _live.update { it.copy(multi = conn.isCan && conn.physical) }
     }
 
     /**
@@ -324,8 +327,12 @@ object ObdManager {
         runCatching {
             val r = ObdParser.parseReadiness(conn.send("0101", 3000))
             val v = activeVehicle()
-            if (r != null && r.diesel && v.fuel != Fuel.DIESEL) {
-                updateVehicle(v.id) { it.copy(fuel = Fuel.DIESEL) }
+            val codes = _live.value.supported.map { it.code }.toSet()
+            // Certains calculateurs (ex. Corsa D 1.3 CDTI) ne mettent pas le bit « diesel » :
+            // pression de rail (PID 23) sans corrections d'injection essence (06/07) = diesel à rampe commune
+            val diesel = r?.diesel == true || ("23" in codes && "06" !in codes && "07" !in codes)
+            if (diesel && v.fuel != Fuel.DIESEL && !v.fuelAutoSet) {
+                updateVehicle(v.id) { it.copy(fuel = Fuel.DIESEL, fuelAutoSet = true) }
                 conn.note("Moteur diesel détecté : carburant du véhicule réglé sur Diesel")
                 _live.update { it.copy(message = "Moteur diesel détecté : carburant réglé sur Diesel. Vérifiez la cylindrée dans Garage (1,3 pour une Corsa 1.3 CDTI).") }
             }
@@ -333,7 +340,13 @@ object ObdManager {
         if (conn.isCan && conn.protoNum in listOf('6', '8')) {
             runCatching {
                 conn.send("ATSH7E0"); conn.send("ATCRA7E8")
-                val ok = ObdParser.parseMode01(conn.send("010C", 2000), "0C", 2) != null
+                // 2 essais avec 0100 (toujours géré) : la première réponse peut être lente juste après le changement d'adresse
+                var ok = false
+                for (i in 1..2) {
+                    val r = try { conn.send("0100", 3000) } catch (e: ObdConnection.ObdTimeout) { "" }
+                    if (ObdParser.parseMode01(r, "00", 4) != null) { ok = true; break }
+                    delay(300)
+                }
                 if (ok) { conn.physical = true; conn.note("Dialogue direct avec le calculateur moteur (7E0/7E8)") }
                 else { conn.send("ATCRA"); conn.send("ATSH7DF"); conn.note("Calculateur moteur pas en 7E0 : dialogue général conservé") }
             }
@@ -919,7 +932,11 @@ object ObdManager {
         pollPaused = true
         try {
             delay(150)
-            repeat(2) { try { return conn.send(mode, 6000) } catch (e: ObdConnection.ObdTimeout) { } }
+            // Diagnostic rapide : on interroge toute la voiture (7DF), pour voir aussi les codes de la boîte automatique
+            if (conn.physical) { conn.send("ATCRA"); conn.send("ATSH7DF") }
+            try {
+                repeat(2) { try { return conn.send(mode, 6000) } catch (e: ObdConnection.ObdTimeout) { } }
+            } finally { if (conn.physical) runCatching { conn.resetHeader() } }
             if (conn.isCan) {
                 conn.note("Pas de réponse à $mode : demande directe au calculateur moteur")
                 try { conn.send("ATSH7E0"); return conn.send(mode, 6000) } finally { runCatching { conn.resetHeader() } }
