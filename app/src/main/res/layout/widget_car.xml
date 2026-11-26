@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="14dp"
+    android:background="@drawable/widget_bg">
+
+    <TextView android:id="@+id/w_title" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textColor="#EEF0F5" android:textSize="17sp" android:textStyle="bold" android:text="Ma voiture" />
+    <TextView android:id="@+id/w_status" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textColor="#6DD58C" android:textSize="13sp" android:layout_marginTop="2dp" android:maxLines="1" android:ellipsize="end" />
+    <TextView android:id="@+id/w_autonomy" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textColor="#EEF0F5" android:textSize="14sp" android:layout_marginTop="8dp" />
+    <TextView android:id="@+id/w_maint" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:textColor="#FFB870" android:textSize="13sp" android:layout_marginTop="2dp" android:maxLines="2" />
+</LinearLayout>
