@@ -20,6 +20,12 @@ import com.example.obdanalyzer.core.ObdManager
 import com.example.obdanalyzer.core.Orientation
 import com.example.obdanalyzer.core.LayoutMode
 import com.example.obdanalyzer.core.Updater
+import com.example.obdanalyzer.core.TripSummary
+import com.example.obdanalyzer.core.Vehicle
+import com.example.obdanalyzer.core.Settings
+import com.example.obdanalyzer.core.Live
+import androidx.compose.ui.draw.alpha
+import androidx.compose.foundation.shape.RoundedCornerShape
 import android.app.Activity
 import android.content.pm.ActivityInfo
 import androidx.compose.ui.graphics.Color
@@ -137,13 +143,13 @@ fun ObdRoot() {
                             when (tab) {
                                 0 -> HomeScreen(l, v, wide, car, locked) { if (!locked) tab = it }
                                 1 -> DiagScreen(l, wide)
-                                2 -> TripsScreen(trips, v, l, wide)
+                                2 -> if (wide && com.example.obdanalyzer.AppFlavor.CAR) MoreScreen(trips, vehicles, v, s, l) { tab = 0 } else TripsScreen(trips, v, l, wide)
                                 else -> GarageScreen(vehicles, v, s, l.stats.distanceKm, wide)
                             }
                         }
                     }
                 }
-                if (wide) {
+                if (wide && !com.example.obdanalyzer.AppFlavor.CAR) {
                     Row(Modifier.fillMaxSize().systemBarsPadding()) {
                         NavigationRail(containerColor = Color.Transparent) {
                             Spacer(Modifier.height(12.dp))
@@ -152,6 +158,20 @@ fun ObdRoot() {
                                     icon = { TabIcon(t, i == 1 && !l.dtcs.isNullOrEmpty()) }, label = { Text(t.label) })
                             }
                         }
+                        VerticalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
+                        content(Modifier.weight(1f))
+                    }
+                } else if (wide) {
+                    // SimCarDiag Auto : une seule barre de 5 gros boutons, faciles à toucher en roulant
+                    Row(Modifier.fillMaxSize().systemBarsPadding()) {
+                        CarRail(
+                            items = listOf(
+                                RailItem("Accueil", Icons.Rounded.Speed, tab == 0, enabled = true) { tab = 0 },
+                                RailItem("Conduite", Icons.Rounded.Fullscreen, false, enabled = connected) { drive = true },
+                                RailItem("Diagnostic", Icons.Rounded.Build, tab == 1, enabled = !locked, dot = !l.dtcs.isNullOrEmpty()) { tab = 1 },
+                                RailItem("Carburant", Icons.Rounded.LocalGasStation, false, enabled = !locked) { pricesOpen = true },
+                                RailItem("Plus", Icons.Rounded.Menu, tab >= 2, enabled = !locked, dot = upd.available) { tab = 2 },
+                            ))
                         VerticalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
                         content(Modifier.weight(1f))
                     }
@@ -208,15 +228,18 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
             }
         }
         if (media && wide) { MediaBar(size = 48.dp); Spacer(Modifier.width(8.dp)) }
+        // horloge (la barre d'Android est masquée en plein écran)
+        Text(clockText(), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
         if (conn == Conn.CONNECTED || conn == Conn.RECONNECTING) {
-            FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
+            if (!(wide && com.example.obdanalyzer.AppFlavor.CAR)) FilledTonalButton(onClick = onDrive) { Icon(Icons.Rounded.Fullscreen, null); Spacer(Modifier.width(6.dp)); Text("Conduite") }
             if (!locked) IconButton(onClick = { ask = true }) { Icon(Icons.Rounded.PowerSettingsNew, "Déconnecter") }
         } else if (conn == Conn.CONNECTING) {
             IconButton(onClick = { ObdManager.disconnect() }) { Icon(Icons.Rounded.Close, "Annuler") }
         }
         // raccourci : stations les moins chères autour de soi (désactivé en roulant)
-        IconButton(onClick = onPrices, enabled = !locked) { Icon(Icons.Rounded.LocalGasStation, "Carburant le moins cher") }
-        IconButton(onClick = onSettings, enabled = !locked) {
+        val car = wide && com.example.obdanalyzer.AppFlavor.CAR
+        if (!car) IconButton(onClick = onPrices, enabled = !locked) { Icon(Icons.Rounded.LocalGasStation, "Carburant le moins cher") }
+        if (!car) IconButton(onClick = onSettings, enabled = !locked) {
             BadgedBox(badge = { if (updateDot) Badge(containerColor = MaterialTheme.colorScheme.primary) }) { Icon(Icons.Rounded.Settings, "Paramètres") }
         }
     }
@@ -229,4 +252,50 @@ private fun TopBar(conn: Conn, rec: Boolean, recStart: Long, vehicle: String, de
         confirmButton = { TextButton(onClick = { ask = false; ObdManager.disconnect() }) { Text("Terminer") } },
         dismissButton = { TextButton(onClick = { ask = false }) { Text("Continuer") } },
     )
+}
+
+
+private class RailItem(val label: String, val icon: ImageVector, val selected: Boolean, val enabled: Boolean,
+                       val dot: Boolean = false, val onClick: () -> Unit)
+
+/** Barre latérale de l'autoradio : 5 grosses tuiles qui se partagent toute la hauteur de l'écran. */
+@Composable
+private fun CarRail(items: List<RailItem>) {
+    Column(Modifier.fillMaxHeight().width(112.dp).padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { it ->
+            val bg = if (it.selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
+            val fg = if (it.selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+            Surface(onClick = it.onClick, enabled = it.enabled, shape = RoundedCornerShape(20.dp), color = bg,
+                modifier = Modifier.weight(1f).fillMaxWidth().alpha(if (it.enabled) 1f else 0.4f)) {
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    BadgedBox(badge = { if (it.dot) Badge(containerColor = LocalObd.current.bad) }) {
+                        Icon(it.icon, null, Modifier.size(34.dp), tint = fg)
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(it.label, color = fg, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+/** « Plus » : tout ce qui sert rarement en roulant, regroupé en un seul endroit. */
+@Composable
+private fun MoreScreen(trips: List<TripSummary>, vehicles: List<Vehicle>, v: Vehicle, s: Settings, l: Live, onBack: () -> Unit) {
+    var page by rememberSaveable { mutableIntStateOf(0) }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Trajets" to Icons.Rounded.Map, "Véhicule" to Icons.Rounded.DirectionsCar, "Réglages" to Icons.Rounded.Settings).forEachIndexed { i, (n, ic) ->
+                FilterChip(selected = page == i, onClick = { page = i }, label = { Text(n, style = MaterialTheme.typography.titleSmall) },
+                    leadingIcon = { Icon(ic, null) }, modifier = Modifier.height(44.dp))
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            when (page) {
+                0 -> TripsScreen(trips, v, l, true)
+                1 -> GarageScreen(vehicles, v, s, l.stats.distanceKm, true)
+                else -> SettingsScreen(s, true, onBack)
+            }
+        }
+    }
 }

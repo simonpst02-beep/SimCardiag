@@ -8,6 +8,31 @@ enum class Fuel(val label: String, val afr: Double, val densityGPerL: Double) {
 }
 
 enum class ThemeMode(val label: String) { SYSTEM("Comme le téléphone"), LIGHT("Clair"), DARK("Sombre"), AUTO_HOURS("Nuit de 19 h à 7 h") }
+/** Thèmes du mode conduite : fond, couleur principale, couleurs du compte-tours. */
+enum class DriveTheme(val label: String, val bgCenter: Long, val bgEdge: Long, val accent: Long, val low: Long, val mid: Long, val high: Long,
+                      val carbon: Boolean = false, val text: Long = 0xFFFFFFFF) {
+    // Écuries
+    RACE("Course", 0xFF1A1416, 0xFF07080B, 0xFFE10600, 0xFF2EE59D, 0xFFFFC233, 0xFFFF2D2D),
+    PAPAYA("Orange piste", 0xFF1C140C, 0xFF080605, 0xFFFF8000, 0xFFFFB366, 0xFFFF8000, 0xFFFF2D2D),
+    RACING_BLUE("Bleu racing", 0xFF0B1630, 0xFF04070F, 0xFF1E5BFF, 0xFF7FB2FF, 0xFF1E5BFF, 0xFFFF3B30),
+    ROSSO("Rouge italien", 0xFF220A0A, 0xFF0A0303, 0xFFD40000, 0xFFFFD200, 0xFFFF7A00, 0xFFD40000),
+    // Carbone et couleur
+    CARBON_YELLOW("Carbone jaune", 0xFF15161A, 0xFF060607, 0xFFFFD200, 0xFFFFFFFF, 0xFFFFD200, 0xFFFF3B30, carbon = true),
+    CARBON_GREEN("Carbone vert", 0xFF121714, 0xFF050706, 0xFF00D26A, 0xFF7DFFB8, 0xFF00D26A, 0xFFFF3B30, carbon = true),
+    CARBON_BLUE("Carbone bleu", 0xFF11151C, 0xFF050608, 0xFF00A8FF, 0xFF8FD8FF, 0xFF00A8FF, 0xFFFF3B30, carbon = true),
+    // Compteur d'autrefois
+    RETRO_90("Compteur années 90", 0xFF0E0C08, 0xFF040403, 0xFFFF8A00, 0xFFFFB347, 0xFFFF8A00, 0xFFFF3B1F, text = 0xFFFFB347),
+}
+
+/** Fonds du mode conduite, teintés de la couleur du thème. */
+enum class DriveBg(val label: String) {
+    AUTO("Du thème"), PLAIN("Uni"), GLOW("Halo"), SPEED("Lignes de vitesse"), HEX("Calandre"),
+    GRID("Grille tech"), BRUSHED("Métal brossé"), STRIPES("Bandes course"), CHECKER("Drapeau"), CARBON("Carbone"),
+}
+
+/** Polices du mode conduite (polices de l'appareil, aucun téléchargement). */
+enum class DriveFont(val label: String) { SPORT("Sport (italique)"), MODERN("Moderne"), DIGITAL("Digital"), CLASSIC("Classique") }
+
 enum class LayoutMode(val label: String) { AUTO("Automatique"), PHONE("Téléphone"), TABLET("Tablette"), CAR("Autoradio") }
 enum class Orientation(val label: String) { AUTO("Automatique"), PORTRAIT("Portrait"), LANDSCAPE("Paysage") }
 enum class PollRate(val label: String, val delayMs: Long) { ECO("Économie de batterie", 250), NORMAL("Normale", 60), FAST("Rapide", 0) }
@@ -95,6 +120,8 @@ data class Vehicle(
     val parkAt: Long = 0,
     /** Le carburant a déjà été détecté automatiquement une fois : ensuite, on respecte le choix de l'utilisateur. */
     val fuelAutoSet: Boolean = false,
+    /** Rapports de boîte appris en roulant : km/h pour 1 000 tr/min, du 1er au dernier. */
+    val gearRatios: List<Double> = emptyList(),
 )
 
 data class TripSummary(
@@ -175,7 +202,14 @@ data class Settings(
     val shiftLight: Boolean = true,
     val shiftRpm: Int = 0,
     /** Connexion « comme hier soir » (méthode de la 2.0.35) : recherche de protocole libre, dialogue général, délais longs. */
-    val legacyLink: Boolean = false,                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
+    val legacyLink: Boolean = false,
+    // Apparence du mode conduite sport
+    val driveTheme: DriveTheme = DriveTheme.RACE,
+    val driveFont: DriveFont = DriveFont.SPORT,
+    val driveAccent: Long = 0,                // 0 = couleur du thème, sinon couleur choisie (ARGB)
+    val driveBg: DriveBg = DriveBg.AUTO,
+    val nightDim: Boolean = true,             // assombrir le mode conduite la nuit
+    val coldAdvice: Boolean = true,           // conseil moteur froid                    // régime de passage du témoin ; 0 = auto (diesel 2 500, essence 3 000)
     val drivingLock: Boolean = true,
     val showHealth: Boolean = true,           // carte « État du véhicule » sur l'accueil
     // GPS

@@ -16,6 +16,7 @@ import com.example.obdanalyzer.widget.CarWidget
 import com.example.obdanalyzer.obd.Expr
 import com.example.obdanalyzer.obd.MetricDef
 import com.example.obdanalyzer.obd.ObdConnection
+import com.example.obdanalyzer.obd.Links
 import com.example.obdanalyzer.obd.ObdParser
 import com.example.obdanalyzer.obd.Pid
 import com.example.obdanalyzer.obd.Pids
@@ -185,6 +186,44 @@ object ObdManager {
         _perf.value = store.loadPerf()
         gps = GpsTracker(ctx)
         pruneTrips()
+        startZoneWatch()
+    }
+
+    /**
+     * Zones de danger aussi quand le boîtier n'est pas connecté : il suffit du GPS de l'appareil.
+     * (Connecté, c'est la boucle de lecture qui s'en charge, avec les autres alertes.)
+     */
+    private fun startZoneWatch() {
+        scope.launch {
+            var loaded = false
+            var wasIn = false
+            while (true) {
+                delay(2000)
+                val s = _settings.value
+                if (!s.dangerZones) { wasIn = false; continue }
+                if (!loaded) { loaded = DangerZones.load(ctx) > 0 }
+                if (_live.value.conn != Conn.IDLE) { wasIn = false; continue }
+                gps.start()
+                val inside = gps.fresh()?.let { DangerZones.check(it) } ?: false
+                if (inside && !wasIn) {
+                    _live.update { it.copy(message = "Zone de danger : respectez les limitations, soyez prudent.") }
+                    alerts.play(false, s.sound && !s.voiceAlerts, s.vibration)
+                    if (s.voiceAlerts) alerts.speak("Zone de danger")
+                }
+                wasIn = inside
+            }
+        }
+    }
+
+    /** Pour les réglages : nombre de zones chargées, zones autour de soi, problème éventuel. */
+    fun zoneStatus(): String {
+        val n = DangerZones.count()
+        val err = DangerZones.lastError
+        if (n == 0) return err ?: "Liste pas encore chargée (internet nécessaire)"
+        val loc = gps.fresh() ?: FuelPrices.lastLocation(ctx)
+        val near = loc?.let { DangerZones.around(it, 10.0) }
+        val inside = loc?.let { DangerZones.check(it) } == true
+        return "$n zones chargées" + (near?.let { " · $it à moins de 10 km" } ?: " · position inconnue") + (if (inside) " · vous êtes dans une zone" else "")
     }
 
     val logsDir get() = store.logsDir
@@ -231,7 +270,7 @@ object ObdManager {
 
     /** Toutes les mesures affichables pour le véhicule actif. */
     fun metricDefs(): List<MetricDef> =
-        Pids.ALL.map { it.def } + listOf(Pids.VOLT, Pids.CONS, Pids.LEFT, Pids.RANGE, Pids.GPSV) +
+        Pids.ALL.map { it.def } + listOf(Pids.VOLT, Pids.CONS, Pids.LEFT, Pids.RANGE, Pids.GPSV, Pids.BOOST, Pids.GEAR) +
             activeVehicle().customPids.map { MetricDef(it.key, it.name, it.unit, it.min, it.max, Family.CUSTOM) }
 
     fun metric(key: String?): MetricDef? = metricDefs().firstOrNull { it.key == key }
@@ -255,30 +294,32 @@ object ObdManager {
     /** À l'ouverture de l'appli : reconnexion au dernier boîtier utilisé. */
     fun autoConnect() {
         val s = _settings.value
-        if (_live.value.conn == Conn.IDLE && s.autoReconnect && s.lastDevice != null && bluetoothOn()) connect(s.lastDevice)
+        if (_live.value.conn == Conn.IDLE && s.autoReconnect && s.lastDevice != null &&
+            (!Links.isBluetooth(s.lastDevice) || bluetoothOn())) connect(s.lastDevice)
     }
 
     /** Connexion lancée par le démarrage de l'appareil ou la détection Bluetooth. Renvoie false s'il n'y a rien à faire. */
     fun autoConnectFromBackground(): Boolean {
         val dev = _settings.value.lastDevice ?: return false
         if (_live.value.conn != Conn.IDLE) return true
-        if (!bluetoothOn()) return false
+        if (Links.isBluetooth(dev) && !bluetoothOn()) return false
         connect(dev)
         return true
     }
 
     @SuppressLint("MissingPermission")
     fun connect(address: String) {
-        val a = adapter ?: return
+        if (Links.isBluetooth(address) && adapter == null) return
         if (_live.value.conn != Conn.IDLE) return
         sessionJob?.cancel()
         sessionJob = scope.launch {
-            val device = a.getRemoteDevice(address)
-            val name = try { device.name } catch (e: SecurityException) { null } ?: address
+            val name = if (Links.isBluetooth(address))
+                (try { adapter?.getRemoteDevice(address)?.name } catch (e: SecurityException) { null } ?: address)
+            else Links.label(address)
             _live.value = Live(conn = Conn.CONNECTING, device = name)
             ObdService.start(ctx)
             try {
-                openAndInit(device)
+                openAndInit(address)
                 updateSettings { it.copy(lastDevice = address) }
                 startSession()
                 _live.update { it.copy(conn = Conn.CONNECTED, step = 4, message = "Connecté ! ${it.supported.size} capteurs disponibles") }
@@ -289,7 +330,8 @@ object ObdManager {
                 ObdService.stop(ctx)
                 _live.update {
                     it.copy(conn = Conn.IDLE, error = e.message?.takeIf { m -> m.startsWith("La voiture") }
-                        ?: "Impossible de se connecter à $name. Vérifiez que le contact est mis et que le boîtier est bien branché.")
+                        ?: if (!Links.isBluetooth(address) && e.message != null) e.message
+                    else "Impossible de se connecter à $name. Vérifiez que le contact est mis et que le boîtier est bien branché.")
                 }
             }
         }
@@ -299,10 +341,17 @@ object ObdManager {
         _live.update { it.copy(log = it.log + line, step = max(it.step, step)) }
 
     @SuppressLint("MissingPermission")
-    private suspend fun openAndInit(device: android.bluetooth.BluetoothDevice) {
+    private suspend fun openAndInit(address: String) {
         conn.legacy = _settings.value.legacyLink
-        conn.open(device, adapter)
-        addLog("Bluetooth connecté", 1)
+        when {
+            Links.isWifi(address) -> { Links.openWifi(ctx, conn, address); addLog("Wi-Fi connecté", 1) }
+            Links.isUsb(address) -> { Links.openUsb(ctx, conn); addLog("Câble USB connecté", 1) }
+            else -> {
+                val d = adapter?.getRemoteDevice(address) ?: throw IOException("Bluetooth indisponible")
+                conn.open(d, adapter, btMode)
+                addLog("Bluetooth connecté", 1)
+            }
+        }
         conn.initialize { line, step -> addLog(line, step) }
         val supported = detectSupported()
         addLog("${supported.size} capteurs détectés", 4)
@@ -473,13 +522,13 @@ object ObdManager {
                     if (loop % 4 == 0) readCustom(values)
                     else activeVehicle().customPids.forEach { c -> _live.value.values[c.key]?.let { values[c.key] = it } }
                     true
-                } catch (e: BoxSilent) { onConnectionLost(); return@launch
+                } catch (e: BoxSilent) { noteSilence(); onConnectionLost(); return@launch
                 } catch (e: IOException) { false }
 
                 if (!ok) {
                     fails++
                     val max = if (conn.legacy) 5 else 4
-                    if (fails >= max) { conn.note("$max échecs de suite : connexion perdue"); onConnectionLost(); return@launch }
+                    if (fails >= max) { conn.note("$max échecs de suite : connexion perdue"); noteSilence(); onConnectionLost(); return@launch }
                     delay(300)
                     continue
                 }
@@ -561,6 +610,25 @@ object ObdManager {
     /** Le boîtier lui-même est muet (liaison Bluetooth tombée) : reconnexion immédiate, sans attendre. */
     class BoxSilent : IOException("Le boîtier ne répond plus")
 
+    // Liaison Bluetooth adaptative : après 2 silences du boîtier en moins de 3 minutes,
+    // on essaie une autre façon d'ouvrir la liaison (et on garde celle qui tient)
+    private val btPrefs by lazy { ctx.getSharedPreferences("bt", android.content.Context.MODE_PRIVATE) }
+    private var btMode: Int
+        get() = btPrefs.getInt("mode", 0)
+        set(v) { btPrefs.edit().putInt("mode", v).apply() }
+    private val silences = ArrayDeque<Long>()
+
+    private fun noteSilence() {
+        val now = System.currentTimeMillis()
+        silences.addLast(now)
+        while (silences.isNotEmpty() && now - silences.first() > 180_000) silences.removeFirst()
+        if (silences.size >= 2 && Links.isBluetooth(_settings.value.lastDevice ?: "")) {
+            silences.clear()
+            btMode = (btMode + 1) % 3
+            conn.note("Coupures répétées : prochaine liaison Bluetooth en mode « ${conn.BT_MODES[btMode]} »")
+        }
+    }
+
     /** Le boîtier n'est déclaré perdu qu'après 2 vérifications muettes de suite (plus de 6 s de silence). */
     private suspend fun checkBox() {
         for (i in 1..2) {
@@ -599,6 +667,48 @@ object ObdManager {
             if (bytes != null) values[c.key] = runCatching { expr.eval(bytes) }.getOrDefault(Double.NaN)
         }
     }
+
+    // ---------------------------------------------------------------- rapports de boîte
+
+    // regroupement des rapports km/h pour 1 000 tr/min : centre, nombre d'échantillons
+    private val gearClusters = mutableListOf<DoubleArray>()
+    private var prevSpeedForGear: Double? = null
+    private var gearSaveTimer = 0.0
+
+    /**
+     * Apprend les rapports : en régime stable (ni embrayage ni accélération forte), le rapport vitesse / régime
+     * est constant pour une vitesse donnée. On regroupe les valeurs proches (à 6 % près) ; les groupes
+     * assez fournis deviennent les rapports, triés du 1er au 5e (ou 6e).
+     */
+    private fun learnGear(v: Vehicle, speed: Double, rpm: Double, dt: Double) {
+        val prev = prevSpeedForGear; prevSpeedForGear = speed
+        if (speed < 8 || rpm < 1000 || dt !in 0.05..2.0 || prev == null) return
+        if (kotlin.math.abs(speed - prev) / dt > 4.0) return          // changement de vitesse ou embrayage en cours
+        val r = speed / rpm * 1000
+        if (gearClusters.isEmpty()) v.gearRatios.forEach { gearClusters += doubleArrayOf(it, 50.0) }
+        val near = gearClusters.minByOrNull { kotlin.math.abs(it[0] - r) / it[0] }
+        if (near != null && kotlin.math.abs(near[0] - r) / near[0] < 0.06) {
+            near[1] += 1.0
+            near[0] += (r - near[0]) / near[1].coerceAtMost(200.0)
+        } else if (gearClusters.size < 8) gearClusters += doubleArrayOf(r, 1.0)
+        gearSaveTimer += dt
+        if (gearSaveTimer > 30) {
+            gearSaveTimer = 0.0
+            val learned = gearClusters.filter { it[1] >= 25 }.map { it[0] }.sorted().take(6)
+            if (learned.size >= 2 && learned != v.gearRatios) updateVehicle(v.id) { it.copy(gearRatios = learned) }
+        }
+    }
+
+    /** Rapport engagé (1, 2, 3…) si le rapport vitesse / régime correspond à un rapport appris (à 7 % près). */
+    private fun gearOf(v: Vehicle, speed: Double, rpm: Double): Int? {
+        if (speed < 3 || rpm < 600 || v.gearRatios.size < 2) return null
+        val r = speed / rpm * 1000
+        val i = v.gearRatios.indices.minByOrNull { kotlin.math.abs(v.gearRatios[it] - r) / v.gearRatios[it] } ?: return null
+        return if (kotlin.math.abs(v.gearRatios[i] - r) / v.gearRatios[i] < 0.07) i + 1 else null
+    }
+
+    /** Oublier les rapports appris (après un changement de véhicule ou de boîte). */
+    fun resetGears() { gearClusters.clear(); updateActive { it.copy(gearRatios = emptyList()) } }
 
     private var lphSmooth: Double? = null
     private var consSource = ""
@@ -662,6 +772,13 @@ object ObdManager {
         if (s0.gpsCorrect && v.speedSampleKm >= 10 && obdV != null) values["speed"] = obdV * v.speedFactor
         val speed = values["speed"]
         val rpm = values["rpm"]
+        // Pression de turbo : pression d'admission moins pression atmosphérique (en bar)
+        values["map"]?.let { map -> values["boost"] = ((map - (values["baro"] ?: 101.3)) / 100.0).coerceAtLeast(-0.2) }
+        // Rapport engagé : appris sur les premiers kilomètres, puis reconnu en direct
+        if (speed != null && rpm != null) {
+            learnGear(v, speed, rpm, dt)
+            gearOf(v, speed, rpm)?.let { values["gear"] = it.toDouble() }
+        }
         val lph = estimateLph(values, v)
         var unit = "L/100km"
         if (lph != null) {
@@ -797,9 +914,7 @@ object ObdManager {
             while (isActive && System.currentTimeMillis() < until) {
                 delay(wait)
                 try {
-                    @SuppressLint("MissingPermission")
-                    val d = adapter?.getRemoteDevice(address) ?: break
-                    openAndInit(d)
+                    openAndInit(address)
                     _live.update { it.copy(conn = Conn.CONNECTED, message = "Reconnecté au boîtier") }
                     startPolling()
                     return@launch
@@ -855,8 +970,15 @@ object ObdManager {
         }
     }
 
+    private var sessionDist = 0.0
+    private var sessionFuel = 0.0
+    private var sessionEco = 100
+    private var sessionTips = emptyList<String>()
+
     private fun endSession(msg: String?) {
         pollJob?.cancel()
+        sessionDist = dist; sessionFuel = fuel; sessionEco = eco.score; sessionTips = eco.tips()
+        prevSpeedForGear = null
         val file = logger?.stop()
         logger = null
         if (dist > 0.3 && sessionStart > 0) {
@@ -894,7 +1016,12 @@ object ObdManager {
         recFile = null
         sessionStart = 0
         dist = 0.0
-        _live.value = Live(conn = Conn.IDLE, message = msg)
+        // Bilan du trajet : distance, carburant, note d'éco-conduite et le conseil principal
+        val summary = if (sessionDist > 0.3) {
+            val tip = sessionTips.firstOrNull()
+            "Trajet : ${fmt(sessionDist)} km · ${"%.1f".format(sessionFuel)} L · éco-conduite $sessionEco/100" + (tip?.let { "\n$it" } ?: "")
+        } else null
+        _live.value = Live(conn = Conn.IDLE, message = listOfNotNull(msg, summary).joinToString("\n").ifBlank { null })
         _ecu.value = EcuScan()
         pollPaused = false
         _battery.value = BatteryTest()
@@ -1385,7 +1512,7 @@ object ObdManager {
         val head = listOf(
             "SimCarDiag ${Updater.currentName(ctx)} · ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} · Android ${android.os.Build.VERSION.RELEASE}",
             "Boîtier : ${l.device ?: "—"} · état : ${l.conn} · protocole : ${l.protocol.ifEmpty { "—" }} · STN : ${l.isStn} · lecture groupée : ${l.multi}",
-            "Méthode : ${if (_settings.value.legacyLink) "comme hier soir (2.0.35)" else "nouvelle"} · dialogue direct moteur : ${conn.physical}",
+            "Méthode : ${if (_settings.value.legacyLink) "comme hier soir (2.0.35)" else "nouvelle"} · dialogue direct moteur : ${conn.physical} · liaison : ${conn.BT_MODES[btMode]}",
             "Capteurs : ${l.supported.joinToString(" ") { it.code }.ifEmpty { "—" }}",
             "Véhicule : ${activeVehicle().name} ${activeVehicle().vin ?: ""}",
             "",

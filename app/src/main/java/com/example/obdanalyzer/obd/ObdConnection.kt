@@ -22,7 +22,18 @@ class ObdConnection {
     }
 
     private var socket: BluetoothSocket? = null
+    // Flux communs aux trois liaisons : Bluetooth, Wi-Fi ou câble USB
+    private var input: java.io.InputStream? = null
+    private var output: java.io.OutputStream? = null
+    private var closer: (() -> Unit)? = null
     private val mutex = Mutex()
+
+    /** Liaison déjà ouverte par Wi-Fi ou USB (voir obd/Links.kt). */
+    fun attach(i: java.io.InputStream, o: java.io.OutputStream, onClose: () -> Unit) {
+        close()
+        physical = false
+        input = i; output = o; closer = onClose
+    }
 
     var isCan = false; private set
     var isStn = false; private set
@@ -39,7 +50,7 @@ class ObdConnection {
 
     fun journal(): List<String> = synchronized(journal) { journal.toList() }
 
-    val isOpen: Boolean get() = socket?.isConnected == true
+    val isOpen: Boolean get() = input != null
 
     @SuppressLint("MissingPermission")
     /**
@@ -52,17 +63,27 @@ class ObdConnection {
     }.getOrDefault(false)
 
     @SuppressLint("MissingPermission")
-    suspend fun open(device: BluetoothDevice, adapter: android.bluetooth.BluetoothAdapter? = null) = withContext(Dispatchers.IO) {
+    /** Façons d'ouvrir la liaison Bluetooth ; certains autoradios n'en supportent bien qu'une. */
+    val BT_MODES = listOf("standard (sécurisée)", "non sécurisée", "canal direct 1")
+
+    suspend fun open(device: BluetoothDevice, adapter: android.bluetooth.BluetoothAdapter? = null, mode: Int = 0) = withContext(Dispatchers.IO) {
         close()
         physical = false
         if (stopDiscovery(adapter)) note("Recherche Bluetooth de l'appareil arrêtée avant la connexion")
+        note("Liaison Bluetooth : ${BT_MODES[mode % 3]}")
+        fun channel1() = (device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType).invoke(device, 1) as BluetoothSocket).also { it.connect() }
         val s = try {
-            device.createRfcommSocketToServiceRecord(SPP_UUID).also { it.connect() }
+            when (mode % 3) {
+                1 -> device.createInsecureRfcommSocketToServiceRecord(SPP_UUID).also { it.connect() }
+                2 -> channel1()
+                else -> device.createRfcommSocketToServiceRecord(SPP_UUID).also { it.connect() }
+            }
         } catch (e: IOException) {
-            val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-            (m.invoke(device, 1) as BluetoothSocket).also { it.connect() }
+            note("Ouverture ${BT_MODES[mode % 3]} impossible, essai par le canal direct")
+            channel1()
         }
         socket = s
+        input = s.inputStream; output = s.outputStream; closer = { runCatching { s.close() } }
     }
 
     /** Initialise l'adaptateur. [log] reçoit chaque échange pour l'écran « Détails techniques ». */
@@ -75,7 +96,7 @@ class ObdConnection {
      * sans ce nettoyage, toutes les réponses suivantes sont décalées d'un cran.
      */
     suspend fun settle(quietMs: Long = 400, maxMs: Long = 3000): Int = withContext(Dispatchers.IO) {
-        val input = socket?.inputStream ?: return@withContext 0
+        val input = input ?: return@withContext 0
         var n = 0
         val end = System.currentTimeMillis() + maxMs
         var lastByte = System.currentTimeMillis()
@@ -137,9 +158,8 @@ class ObdConnection {
 
     suspend fun send(cmd: String, timeoutMs: Long = 4000): String = mutex.withLock {
         withContext(Dispatchers.IO) {
-            val s = socket ?: throw IOException("Non connecté")
-            val input = s.inputStream
-            val output = s.outputStream
+            val input = input ?: throw IOException("Non connecté")
+            val output = output ?: throw IOException("Non connecté")
             // petit intervalle entre deux commandes : ménage les liaisons Bluetooth fragiles (autoradios)
             val gap = 25 - (System.currentTimeMillis() - lastEnd)
             if (gap > 0) delay(gap)
@@ -189,7 +209,8 @@ class ObdConnection {
     }
 
     fun close() {
+        runCatching { closer?.invoke() }
         runCatching { socket?.close() }
-        socket = null
+        socket = null; input = null; output = null; closer = null
     }
 }

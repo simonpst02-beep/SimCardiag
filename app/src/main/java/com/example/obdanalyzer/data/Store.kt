@@ -78,6 +78,12 @@ class Store(private val context: Context) {
             mediaButtons = o.optBoolean("mediaButtons", false),
             shiftRpm = o.optInt("shiftRpm", 0),
             legacyLink = o.optBoolean("legacyLink", false),
+            driveTheme = enumOr(o.optString("driveTheme"), com.example.obdanalyzer.core.DriveTheme.RACE),
+            driveFont = enumOr(o.optString("driveFont"), com.example.obdanalyzer.core.DriveFont.SPORT),
+            driveAccent = o.optLong("driveAccent", 0),
+            driveBg = enumOr(o.optString("driveBg"), com.example.obdanalyzer.core.DriveBg.AUTO),
+            nightDim = o.optBoolean("nightDim", true),
+            coldAdvice = o.optBoolean("coldAdvice", true),
             spotifyButton = o.optBoolean("spotifyButton", false),
             githubToken = o.optString("githubToken", ""),
         )
@@ -97,7 +103,8 @@ class Store(private val context: Context) {
             .put("autoUpdateCheck", s.autoUpdateCheck).put("githubToken", s.githubToken)
             .put("autoStartBoot", s.autoStartBoot).put("autoConnectBt", s.autoConnectBt).put("fullscreen", s.fullscreen)
             .put("layoutMode", s.layoutMode.name).put("voiceAlerts", s.voiceAlerts).put("shiftLight", s.shiftLight)
-            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("showHealth", s.showHealth).put("gpsCorrect", s.gpsCorrect).put("dangerZones", s.dangerZones).put("maintNotif", s.maintNotif).put("mediaButtons", s.mediaButtons).put("shiftRpm", s.shiftRpm).put("legacyLink", s.legacyLink).put("spotifyButton", s.spotifyButton)
+            .put("drivingLock", s.drivingLock).put("gpsDistance", s.gpsDistance).put("showHealth", s.showHealth).put("gpsCorrect", s.gpsCorrect).put("dangerZones", s.dangerZones).put("maintNotif", s.maintNotif).put("mediaButtons", s.mediaButtons).put("shiftRpm", s.shiftRpm).put("legacyLink", s.legacyLink)
+            .put("driveTheme", s.driveTheme.name).put("driveFont", s.driveFont.name).put("driveAccent", s.driveAccent).put("driveBg", s.driveBg.name).put("nightDim", s.nightDim).put("coldAdvice", s.coldAdvice).put("spotifyButton", s.spotifyButton)
         prefs.edit().putString("settings", o.toString()).apply()
     }
 
@@ -119,7 +126,7 @@ class Store(private val context: Context) {
         .put("tankL", v.tankL).put("odometerKm", v.odometerKm).put("preset", v.preset)
         .put("lastFuelPct", v.lastFuelPct ?: -1.0).put("lastAvgCons", v.lastAvgCons ?: -1.0).put("consFactor", v.consFactor).put("engineL", v.engineL).put("fuelRefL", v.fuelRefL ?: -1.0).put("fuelRefAt", v.fuelRefAt).put("speedFactor", v.speedFactor).put("speedSampleKm", v.speedSampleKm)
         .put("crankHistory", JSONArray(v.crankHistory)).put("lastCrankAt", v.lastCrankAt)
-        .put("parkLat", v.parkLat ?: 999.0).put("parkLon", v.parkLon ?: 999.0).put("parkAt", v.parkAt).put("fuelAutoSet", v.fuelAutoSet)
+        .put("parkLat", v.parkLat ?: 999.0).put("parkLon", v.parkLon ?: 999.0).put("parkAt", v.parkAt).put("fuelAutoSet", v.fuelAutoSet).put("gearRatios", JSONArray(v.gearRatios))
         .put("layout", JSONArray().apply { v.layout.forEach { put(JSONObject().put("k", it.kind).put("m", it.metric ?: "").put("w", it.wide)) } })
         .put("maintenance", JSONArray().apply {
             v.maintenance.forEach {
@@ -183,6 +190,7 @@ class Store(private val context: Context) {
             parkLon = o.optDouble("parkLon", 999.0).takeIf { it < 900 },
             parkAt = o.optLong("parkAt", 0),
             fuelAutoSet = o.optBoolean("fuelAutoSet", false),
+            gearRatios = o.optJSONArray("gearRatios")?.let { a -> (0 until a.length()).map { a.getDouble(it) } } ?: emptyList(),
         )
         return if (layout != null) base.copy(layout = layout) else base
     }

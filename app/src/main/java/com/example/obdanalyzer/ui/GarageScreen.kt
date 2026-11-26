@@ -30,6 +30,8 @@ import com.example.obdanalyzer.core.TempUnit
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -320,6 +322,79 @@ private fun CustomPidDialog(onDismiss: () -> Unit, onSave: (CustomPid) -> Unit) 
 @Composable
 private fun DriveModeCard(s: Settings) {
     SectionCard(Icons.Rounded.Fullscreen, LocalObd.current.engine, "Mode conduite") {
+        Text("Thème", fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            com.example.obdanalyzer.core.DriveTheme.entries.forEach { t ->
+                val on = s.driveTheme == t
+                Surface(onClick = { ObdManager.updateSettings { it.copy(driveTheme = t, driveAccent = 0) } },
+                    shape = RoundedCornerShape(14.dp), border = BorderStroke(if (on) 3.dp else 1.dp, if (on) Color(t.accent) else MaterialTheme.colorScheme.outlineVariant)) {
+                    Box(Modifier.background(Brush.radialGradient(listOf(Color(t.bgCenter), Color(t.bgEdge))))) {
+                    if (t.carbon) CarbonWeave(Modifier.matchParentSize())
+                    Column(Modifier.padding(10.dp).width(110.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf(t.low, t.mid, t.high).forEach { c -> Box(Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(50)).background(Color(c))) }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(t.label, color = Color(t.text), fontWeight = FontWeight.Bold, maxLines = 1)
+                        Box(Modifier.padding(top = 4.dp).width(40.dp).height(4.dp).background(Color(t.accent)))
+                    }
+                    }
+                }
+            }
+        }
+        Text("Fond", fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val stl = driveStyle(s)
+            com.example.obdanalyzer.core.DriveBg.entries.forEach { b ->
+                val on = s.driveBg == b
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(96.dp, 56.dp).clip(RoundedCornerShape(12.dp))
+                        .background(Brush.radialGradient(listOf(stl.bgCenter, stl.bgEdge)))
+                        .border(if (on) 3.dp else 1.dp, if (on) stl.accent else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                        .clickable { ObdManager.updateSettings { it.copy(driveBg = b) } }) {
+                        DriveBackground(b, stl, Modifier.matchParentSize())
+                    }
+                    Text(b.label, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        Text("Police des chiffres", fontWeight = FontWeight.SemiBold)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            com.example.obdanalyzer.core.DriveFont.entries.forEach { f ->
+                val st = driveStyle(s.copy(driveFont = f))
+                FilterChip(selected = s.driveFont == f, onClick = { ObdManager.updateSettings { it.copy(driveFont = f) } },
+                    label = { Text("88 · ${f.label}", fontFamily = st.family, fontWeight = st.weight,
+                        fontStyle = if (st.italic) androidx.compose.ui.text.font.FontStyle.Italic else androidx.compose.ui.text.font.FontStyle.Normal) })
+            }
+        }
+        Text("Couleur principale", fontWeight = FontWeight.SemiBold)
+        val colors = listOf(0L to "Du thème", 0xFFE10600 to "Rouge", 0xFFFF7A00 to "Orange", 0xFFFFD23F to "Jaune", 0xFF39FF14 to "Vert",
+            0xFF2EC7FF to "Bleu", 0xFF8A7DFF to "Violet", 0xFFFF3EC8 to "Rose", 0xFFFFFFFF to "Blanc")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            colors.forEach { (c, n) ->
+                val on = s.driveAccent == c
+                val shown = if (c == 0L) Color(s.driveTheme.accent) else Color(c)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(40.dp).clip(CircleShape).background(shown)
+                        .border(if (on) 3.dp else 1.dp, if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                        .clickable { ObdManager.updateSettings { it.copy(driveAccent = c) } })
+                    Text(n, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        SwitchRow("Assombrir la nuit", "De 20 h à 7 h, l'écran du mode conduite est atténué pour ne pas éblouir", s.nightDim) { on ->
+            ObdManager.updateSettings { it.copy(nightDim = on) }
+        }
+        SwitchRow("Conseil moteur froid", "Sous 60 °C : bandeau « évitez les hauts régimes » et passage des vitesses conseillé 500 tr/min plus tôt", s.coldAdvice) { on ->
+            ObdManager.updateSettings { it.copy(coldAdvice = on) }
+        }
+        val gears = ObdManager.activeVehicle().gearRatios.size
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (gears >= 2) "Rapport engagé : $gears rapports appris" else "Rapport engagé : apprentissage en cours (roulez quelques km en passant les vitesses)",
+                style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+            if (gears > 0) TextButton(onClick = { ObdManager.resetGears() }) { Text("Réapprendre") }
+        }
+        Text("Mesures à droite du compte-tours", fontWeight = FontWeight.SemiBold)
         Text("Choisissez jusqu'à 8 mesures affichées en grand pendant la conduite (${s.driveMetrics.size}/8). Plus il y en a, plus les chiffres sont petits.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -361,13 +436,14 @@ private fun AlertsCard(s: Settings) {
         if (s.dangerZones) {
             val ctxZ = LocalContext.current
             val scopeZ = rememberCoroutineScope()
-            var zn by remember { mutableIntStateOf(com.example.obdanalyzer.core.DangerZones.count()) }
-            LaunchedEffect(Unit) { zn = com.example.obdanalyzer.core.DangerZones.load(ctxZ) }
+            var status by remember { mutableStateOf("Chargement…") }
+            LaunchedEffect(Unit) { com.example.obdanalyzer.core.DangerZones.load(ctxZ); status = ObdManager.zoneStatus() }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (zn > 0) "$zn zones chargées" else "Liste pas encore téléchargée (internet nécessaire)",
-                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                TextButton(onClick = { scopeZ.launch { zn = com.example.obdanalyzer.core.DangerZones.load(ctxZ, force = true) } }) { Text("Mettre à jour") }
+                Text(status, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                TextButton(onClick = { status = "Téléchargement…"; scopeZ.launch { com.example.obdanalyzer.core.DangerZones.load(ctxZ, force = true); status = ObdManager.zoneStatus() } }) { Text("Mettre à jour") }
             }
+            Text("Fonctionne aussi sans le boîtier, avec le GPS de l'appareil. Annonce à l'entrée de chaque zone (son ou voix selon vos réglages d'alerte).",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         SwitchRow("Rappels d'entretien par notification", "Une fois par jour, même appli fermée : vidange, contrôle technique, assurance…", s.maintNotif) { v ->
             ObdManager.updateSettings { it.copy(maintNotif = v) }
